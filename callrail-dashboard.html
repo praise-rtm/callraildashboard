@@ -1,0 +1,1973 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CallRail Call Dashboard Analysis — Real Time Marketing</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  /* Real Time Marketing palette */
+  --orange:#f99e23; --orange-dark:#d7891f; --blue:#004b74; --navy:#042232;
+  --primary:#004b74; --primary-dark:#042232; --primary-mid:#1a6d9e; --primary-light:#d6eaf8;
+  --accent:#f99e23; --accent-dark:#d7891f; --accent-light:#fcd8a3;
+  --green:#22c55e; --green-dark:#15803d; --yellow:#f59e0b; --red:#ef4444; --purple:#8b5cf6; --slate:#64748b;
+  --bg:#eef2f7; --surface:#ffffff; --surface2:#f4f7fb; --border:#dde3ed;
+  --text:#1a202c; --text-muted:#64748b; --header-h:66px;
+}
+body{font-family:'Montserrat',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+
+/* HEADER */
+.header{position:sticky;top:0;z-index:200;height:var(--header-h);background:linear-gradient(100deg,var(--navy),var(--blue));
+  display:flex;align-items:center;padding:0 22px;gap:16px;box-shadow:0 2px 14px rgba(4,34,50,.35)}
+.header img{height:36px;width:auto;display:block}
+.header-divider{width:2px;height:34px;background:var(--accent);border-radius:2px}
+.header-text h1{color:#fff;font-size:15.5px;font-weight:800;letter-spacing:.3px;line-height:1.1}
+.header-text p{color:rgba(255,255,255,.6);font-size:11px;font-weight:500;margin-top:2px}
+.header-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+.engine-badge{font-size:11px;font-weight:700;padding:6px 12px;border-radius:20px;display:flex;align-items:center;gap:7px;
+  background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.22);color:rgba(255,255,255,.85)}
+.engine-badge .dot{width:8px;height:8px;border-radius:50%;background:var(--slate)}
+.engine-badge.ai .dot{background:var(--green);box-shadow:0 0 0 3px rgba(34,197,94,.25)}
+.engine-badge.heur .dot{background:var(--accent)}
+
+/* Fluid: fill the browser width so the table columns get more room as the window widens. */
+.wrap{padding:20px 22px 60px;max-width:100%;margin:0 auto}
+
+/* CONFIG CARD */
+.config{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px;margin-bottom:18px;
+  box-shadow:0 2px 10px rgba(4,34,50,.05)}
+.config-row{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted)}
+.field input,.field select{padding:10px 12px;border:1px solid var(--border);border-radius:9px;font-family:inherit;
+  font-size:13px;background:var(--surface);color:var(--text);min-width:180px}
+.field input:focus,.field select:focus{outline:none;border-color:var(--primary-mid);box-shadow:0 0 0 3px rgba(26,109,158,.14)}
+.field.key input{min-width:300px;font-family:ui-monospace,monospace;letter-spacing:1px}
+.hint{font-size:11px;color:var(--text-muted);margin-top:9px;line-height:1.5}
+.hint code{background:var(--surface2);padding:1px 6px;border-radius:5px;font-size:11px;border:1px solid var(--border)}
+.spacer{flex:1}
+
+.btn{font-family:inherit;font-size:12.5px;font-weight:700;padding:11px 18px;border-radius:9px;cursor:pointer;
+  border:1px solid var(--border);background:var(--surface);color:var(--text);transition:.15s;white-space:nowrap;display:inline-flex;align-items:center;gap:7px}
+.btn:hover:not(:disabled){border-color:var(--primary-mid);color:var(--primary)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn-primary{background:var(--primary);color:#fff;border-color:var(--primary)}
+.btn-primary:hover:not(:disabled){background:var(--primary-dark);color:#fff}
+.btn-accent{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn-accent:hover:not(:disabled){background:var(--accent-dark);color:#fff}
+.btn-ghost-red{color:var(--red);border-color:#f3c0c0}
+.btn-ghost-red:hover:not(:disabled){background:#fff5f5;border-color:var(--red);color:var(--red)}
+.file-drop{border:2px dashed var(--border);border-radius:11px;padding:16px;text-align:center;cursor:pointer;transition:.15s;
+  background:var(--surface2)}
+.file-drop:hover,.file-drop.drag{border-color:var(--accent);background:#fff8ef}
+.file-drop strong{color:var(--primary);font-size:13px}
+.file-drop span{display:block;font-size:11.5px;color:var(--text-muted);margin-top:4px}
+
+/* PROGRESS */
+.progress-wrap{margin-top:14px;display:none}
+.progress-wrap.show{display:block}
+.progress-bar{height:10px;background:var(--surface2);border-radius:8px;overflow:hidden;border:1px solid var(--border)}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-dark));width:0;transition:width .3s}
+.progress-meta{display:flex;justify-content:space-between;font-size:11.5px;font-weight:600;color:var(--text-muted);margin-top:6px}
+.progress-meta b{color:var(--primary)}
+
+/* STATS */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
+.stat{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:15px 16px;position:relative;overflow:hidden}
+.stat::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--slate)}
+.stat.blue::before{background:var(--blue)} .stat.green::before{background:var(--green)}
+.stat.red::before{background:var(--red)} .stat.orange::before{background:var(--accent)}
+.stat.purple::before{background:var(--purple)}
+.stat-val{font-size:26px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+.stat-label{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-top:7px}
+.stat-sub{font-size:11px;color:var(--text-muted);margin-top:3px}
+
+/* REASON BREAKDOWN */
+.reasons{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:16px}
+.reasons h3{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);margin-bottom:11px}
+.reason-grid{display:flex;flex-wrap:wrap;gap:8px}
+.reason-pill{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;padding:6px 12px;border-radius:20px;
+  background:var(--surface2);border:1px solid var(--border);cursor:pointer;transition:.15s}
+.reason-pill:hover{border-color:var(--primary-mid)}
+.reason-pill.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+.reason-pill b{font-variant-numeric:tabular-nums}
+.reason-dot{width:9px;height:9px;border-radius:50%}
+
+/* TOOLBAR */
+.toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:12px}
+.search{flex:1;min-width:220px;position:relative}
+.search input{width:100%;padding:10px 12px 10px 34px;border:1px solid var(--border);border-radius:9px;font-family:inherit;font-size:13px;background:var(--surface)}
+.search input:focus{outline:none;border-color:var(--primary-mid);box-shadow:0 0 0 3px rgba(26,109,158,.12)}
+.search::before{content:'\1F50D';position:absolute;left:11px;top:50%;transform:translateY(-50%);font-size:12px;opacity:.55}
+.tsel{padding:9px 12px;border:1px solid var(--border);border-radius:9px;font-family:inherit;font-size:12.5px;background:var(--surface);font-weight:600;color:var(--text)}
+
+/* TABLE */
+.table-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.tbl-scroll{overflow-x:auto}
+table{width:100%;min-width:1280px;border-collapse:collapse;font-size:12.5px}
+thead th{background:var(--primary-dark);color:#fff;font-weight:700;text-align:left;padding:11px 12px;white-space:nowrap;
+  position:sticky;top:0;font-size:11px;text-transform:uppercase;letter-spacing:.4px}
+tbody td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:top}
+tbody tr:hover{background:var(--surface2)}
+tbody tr.expand-row:hover{background:transparent}
+.c-caller{font-weight:700;color:var(--text)}
+.c-sub{font-size:11px;color:var(--text-muted);margin-top:2px}
+/* Text columns scale with the window: the wider the browser, the more room the summary gets. */
+.c-summary{max-width:clamp(280px,30vw,900px);min-width:260px;font-size:12px;line-height:1.5;color:#374151}
+.c-reqsvc{font-size:12px;font-weight:600;color:var(--primary);max-width:clamp(160px,11vw,300px);line-height:1.35}
+.c-sched{font-size:12px;font-weight:600;color:var(--text);max-width:clamp(150px,10vw,260px);line-height:1.35;white-space:normal}
+.pending{color:var(--slate);font-style:italic;font-size:11.5px}
+
+.badge{display:inline-block;font-size:10.5px;font-weight:800;padding:3px 9px;border-radius:20px;white-space:nowrap;letter-spacing:.2px}
+.b-booked{background:#dcfce7;color:var(--green-dark);border:1px solid #a7f3cf}
+.b-notbooked{background:#fee2e2;color:#b91c1c;border:1px solid #fbbdbd}
+.b-na{background:#f1f5f9;color:var(--slate);border:1px solid #e2e8f0}
+/* read-only first-time-caller checkbox: checked = first-time, unchecked = repeat */
+.ck{width:17px;height:17px;accent-color:var(--primary);pointer-events:none;margin:2px 0;vertical-align:middle}
+.b-yes{background:#dbeafe;color:#1e40af;border:1px solid #bfdbfe}
+.b-no{background:#f1f5f9;color:var(--slate);border:1px solid #e2e8f0}
+.reason-tag{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:20px;
+  background:var(--surface2);border:1px solid var(--border);white-space:nowrap}
+.t-friendly{background:#dcfce7;color:var(--green-dark);border:1px solid #a7f3cf}
+.t-pro{background:#dbeafe;color:#1e40af;border:1px solid #bfdbfe}
+.t-neutral{background:#f1f5f9;color:var(--slate);border:1px solid #e2e8f0}
+.t-curt{background:#fef3c7;color:#b45309;border:1px solid #fce08a}
+.t-rude{background:#fee2e2;color:#b91c1c;border:1px solid #fbbdbd}
+.t-na{background:#f8fafc;color:#94a3b8;border:1px solid #eef2f7}
+tbody tr.rude-row{background:#fff5f5}
+tbody tr.rude-row:hover{background:#ffecec}
+.status-tag{font-size:10.5px;font-weight:700;color:var(--text-muted)}
+
+.expand-btn{cursor:pointer;color:var(--primary-mid);font-weight:700;font-size:11px;user-select:none}
+.expand-btn:hover{color:var(--primary)}
+.detail{background:var(--surface2);padding:0}
+.detail-inner{padding:16px 20px;display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.detail-block h4{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--primary);margin-bottom:8px}
+.transcript{white-space:pre-wrap;font-size:12px;line-height:1.6;color:#334155;max-height:340px;overflow-y:auto;
+  background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:12px}
+.note-box{white-space:pre-wrap;font-size:12px;line-height:1.55;color:#334155;background:var(--surface);border:1px solid var(--border);border-radius:9px;padding:12px}
+.detail-meta{font-size:11.5px;color:var(--text-muted);line-height:1.9}
+.detail-meta b{color:var(--text)}
+.rec-link{color:var(--primary-mid);font-weight:600;text-decoration:none}
+.rec-link:hover{text-decoration:underline}
+
+.empty{padding:60px 20px;text-align:center;color:var(--text-muted)}
+.empty .big{font-size:44px;margin-bottom:12px}
+.empty h2{font-size:17px;color:var(--text);font-weight:700;margin-bottom:6px}
+.empty p{font-size:13px;max-width:480px;margin:0 auto;line-height:1.6}
+
+.toast{position:fixed;bottom:22px;right:22px;background:var(--navy);color:#fff;padding:13px 18px;border-radius:10px;
+  font-size:13px;font-weight:600;box-shadow:0 8px 30px rgba(0,0,0,.3);z-index:500;transform:translateY(140%);transition:transform .3s;max-width:380px}
+.toast.show{transform:translateY(0)}
+.toast.err{background:#7f1d1d}
+.row-count{font-size:12px;font-weight:700;color:var(--text-muted)}
+.row-count b{color:var(--primary)}
+@media(max-width:820px){.detail-inner{grid-template-columns:1fr}.field.key input{min-width:200px}}
+</style>
+</head>
+<body>
+<div class="header">
+  <img src="https://cdn-kjigl.nitrocdn.com/pnwIXRFdybUPisPfAzpIrnxojGSNUDCf/assets/images/optimized/rev-e448001/realtimemarketing.com/wp-content/uploads/2026/02/RTM-New-Logo-Light.png" alt="Real Time Marketing" onerror="this.style.display='none'"/>
+  <div class="header-divider"></div>
+  <div class="header-text">
+    <h1>CallRail Call Dashboard Analysis</h1>
+    <p>Transcript summarization &middot; service-call &amp; booking analysis &middot; lead validation</p>
+  </div>
+  <div class="header-right">
+    <div class="engine-badge heur" id="engineBadge"><span class="dot"></span><span id="engineText">Heuristic mode</span></div>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <!-- CONFIG -->
+  <div class="config">
+    <div class="config-row">
+      <div class="field key">
+        <label>Anthropic API Key (optional — enables AI analysis)</label>
+        <input type="password" id="apiKey" placeholder="sk-ant-..." autocomplete="off" />
+      </div>
+      <div class="field">
+        <label>AI Model</label>
+        <select id="model">
+          <option value="claude-opus-4-8">Claude Opus 4.8 (most accurate)</option>
+          <option value="claude-sonnet-4-6">Claude Sonnet 4.6 (balanced)</option>
+          <option value="claude-haiku-4-5" selected>Claude Haiku 4.5 (fast &amp; cheap)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Concurrency</label>
+        <select id="concurrency">
+          <option value="3">3 at a time</option>
+          <option value="5" selected>5 at a time</option>
+          <option value="8">8 at a time</option>
+        </select>
+      </div>
+      <div class="spacer"></div>
+      <button class="btn btn-accent" id="analyzeBtn" disabled>&#9889; Run Analysis</button>
+      <button class="btn" id="resetBtn" disabled title="Discard cached results and analyze every call again">&#8635; Reset Analysis</button>
+      <button class="btn btn-ghost-red" id="stopBtn" style="display:none">&#9632; Stop</button>
+    </div>
+
+    <div class="file-drop" id="fileDrop" style="margin-top:14px">
+      <strong>&#128228; Click or drop a CallRail export here</strong>
+      <span>Accepts .csv or .xlsx exported from CallRail (Call Log with Full Transcription). Everything runs in your browser.</span>
+      <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" style="display:none" />
+    </div>
+
+    <div class="progress-wrap" id="progressWrap">
+      <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+      <div class="progress-meta"><span id="progressText">Analyzing…</span><span id="progressPct"><b>0</b>%</span></div>
+    </div>
+
+    <div class="hint">
+      The key is stored only in this browser's <code>localStorage</code> and sent directly to Anthropic. Without a key the dashboard uses a built-in keyword engine (works offline, lower accuracy). Analysis results are cached locally so re-running skips completed calls.
+    </div>
+  </div>
+
+  <!-- STATS -->
+  <div class="stats" id="stats" style="display:none">
+    <div class="stat blue"><div class="stat-val" id="stTotal">0</div><div class="stat-label">Total Calls</div><div class="stat-sub" id="stAnalyzed">0 analyzed</div></div>
+    <div class="stat purple"><div class="stat-val" id="stService">0</div><div class="stat-label">Service Calls</div><div class="stat-sub" id="stServicePct">&mdash;</div></div>
+    <div class="stat green"><div class="stat-val" id="stBooked">0</div><div class="stat-label">Booked</div><div class="stat-sub" id="stBookRate">&mdash;</div></div>
+    <div class="stat red"><div class="stat-val" id="stNotBooked">0</div><div class="stat-label">Not Booked</div><div class="stat-sub">service calls w/o appt</div></div>
+    <div class="stat orange"><div class="stat-val" id="stValid">0</div><div class="stat-label">Valid Calls</div><div class="stat-sub" id="stValidPct">&mdash;</div></div>
+    <div class="stat red"><div class="stat-val" id="stRude">0</div><div class="stat-label">Rude / Curt Tone</div><div class="stat-sub" id="stRudeSub">agent tone flags</div></div>
+  </div>
+
+  <div class="reasons" id="reasonsCard" style="display:none">
+    <h3>Call Categories &mdash; click to filter</h3>
+    <div class="reason-grid" id="reasonGrid"></div>
+  </div>
+
+  <!-- TOOLBAR -->
+  <div class="toolbar" id="toolbar" style="display:none">
+    <div class="search"><input type="text" id="search" placeholder="Search caller, phone, summary, transcript…" /></div>
+    <select class="tsel" id="fBooking"><option value="">All bookings</option><option>Booked</option><option>Not Booked</option></select>
+    <select class="tsel" id="fService"><option value="">Service &amp; non-service</option><option value="yes">Service calls</option><option value="no">Non-service</option></select>
+    <select class="tsel" id="fTone"><option value="">All agent tones</option><option>Friendly</option><option>Professional</option><option>Neutral</option><option>Curt</option><option>Rude</option><option value="flag">Rude or Curt</option><option>N/A</option></select>
+    <select class="tsel" id="fStatus"><option value="">All CallRail statuses</option></select>
+    <span class="row-count" id="rowCount"></span>
+    <div class="spacer"></div>
+    <button class="btn" id="exportCsv" disabled>&#128190; Export CSV</button>
+    <button class="btn btn-primary" id="exportXlsx" disabled>&#128202; Export Excel</button>
+  </div>
+
+  <div class="table-card" id="tableCard">
+    <div class="empty" id="emptyState">
+      <div class="big">&#128222;</div>
+      <h2>No call data loaded yet</h2>
+      <p>Upload a CallRail export above to summarize transcriptions, detect service calls, flag booked vs. not-booked leads, and categorize invalid calls (spam, wrong number, job applications, and more).</p>
+    </div>
+    <div class="tbl-scroll" id="tblScroll" style="display:none">
+      <table>
+        <thead><tr>
+          <th style="width:34px"></th>
+          <th>Date / Time</th>
+          <th>Status</th>
+          <th>Company</th>
+          <th>Caller</th>
+          <th>Phone</th>
+          <th>Dur</th>
+          <th>Service</th>
+          <th>Requested Service</th>
+          <th>Booking</th>
+          <th>Scheduled Date</th>
+          <th title="Checked = first-time caller · Unchecked = repeat caller">First-Time</th>
+          <th>Category / Reason</th>
+          <th>Agent Tone</th>
+          <th>Call Summary</th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   CallRail Call Dashboard Analysis
+   ============================================================ */
+
+// NOTE: "Repeat Caller" is deliberately NOT a category. Repeat callers are classified on the
+// call's own merits (valid service call or not, booked or not); first-time status is a separate column.
+const REASONS = [
+  "Valid Call","Not Available","Cancelled","Abandoned","Missed","Disconnected","Incorrect Business",
+  "Job Application","Marketing","Spam","Wrong Number"
+];
+const REASON_COLORS = {
+  "Valid Call":"#22c55e","Not Available":"#ca8a04","Cancelled":"#be185d","Abandoned":"#f59e0b","Missed":"#ef4444","Disconnected":"#8b5cf6",
+  "Incorrect Business":"#0ea5e9","Job Application":"#14b8a6","Marketing":"#f97316",
+  "Spam":"#dc2626","Wrong Number":"#a855f7"
+};
+const TONES = ["Friendly","Professional","Neutral","Curt","Rude","N/A"];
+const TONE_CLASS = {"Friendly":"t-friendly","Professional":"t-pro","Neutral":"t-neutral","Curt":"t-curt","Rude":"t-rude","N/A":"t-na"};
+
+// Bump this version whenever classification logic changes, so stale cached results
+// from an older ruleset are discarded instead of silently reused.
+const LS_KEY = "callrail_analysis_v84";
+const LS_APIKEY = "callrail_api_key";
+const LS_MODEL = "callrail_model";
+
+let CALLS = [];          // parsed rows {raw fields..., key, analysis}
+let ANALYSIS = loadCache(); // key -> {summary,is_service_call,booking_status,invalid_reason,confidence,engine}
+let running = false, stopFlag = false;
+let activeReason = "";
+
+/* ---------- element refs ---------- */
+const $ = id => document.getElementById(id);
+const apiKeyEl=$("apiKey"), modelEl=$("model"), concEl=$("concurrency");
+const analyzeBtn=$("analyzeBtn"), stopBtn=$("stopBtn");
+
+/* ---------- init ---------- */
+apiKeyEl.value = localStorage.getItem(LS_APIKEY) || "";
+if(localStorage.getItem(LS_MODEL)) modelEl.value = localStorage.getItem(LS_MODEL);
+updateEngineBadge();
+apiKeyEl.addEventListener("input", ()=>{ localStorage.setItem(LS_APIKEY, apiKeyEl.value.trim()); updateEngineBadge(); });
+modelEl.addEventListener("change", ()=> localStorage.setItem(LS_MODEL, modelEl.value));
+
+function updateEngineBadge(){
+  const has = !!apiKeyEl.value.trim();
+  const b=$("engineBadge"), t=$("engineText");
+  if(has){ b.className="engine-badge ai"; t.textContent="AI mode (Claude)"; }
+  else { b.className="engine-badge heur"; t.textContent="Heuristic mode"; }
+}
+
+function loadCache(){ try{ return JSON.parse(localStorage.getItem(LS_KEY))||{}; }catch(e){ return {}; } }
+function saveCache(){ localStorage.setItem(LS_KEY, JSON.stringify(ANALYSIS)); }
+
+function toast(msg,isErr){
+  const t=$("toast"); t.textContent=msg; t.className="toast show"+(isErr?" err":"");
+  clearTimeout(t._t); t._t=setTimeout(()=>t.className="toast",4200);
+}
+
+/* ============================================================
+   FILE UPLOAD & PARSING
+   ============================================================ */
+const fileDrop=$("fileDrop"), fileInput=$("fileInput");
+fileDrop.addEventListener("click",()=>fileInput.click());
+fileDrop.addEventListener("dragover",e=>{e.preventDefault();fileDrop.classList.add("drag");});
+fileDrop.addEventListener("dragleave",()=>fileDrop.classList.remove("drag"));
+fileDrop.addEventListener("drop",e=>{e.preventDefault();fileDrop.classList.remove("drag");if(e.dataTransfer.files[0])handleFile(e.dataTransfer.files[0]);});
+fileInput.addEventListener("change",e=>{if(e.target.files[0])handleFile(e.target.files[0]);});
+
+function handleFile(file){
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const wb=XLSX.read(e.target.result,{type:"array",cellDates:true});
+      const rows=extractRows(wb);
+      if(!rows.length){ toast("No call rows with a recognizable header found.",true); return; }
+      CALLS=rows;
+      buildStatusFilter();
+      renderAll();
+      $("stats").style.display="grid";
+      $("reasonsCard").style.display="block";
+      $("toolbar").style.display="flex";
+      analyzeBtn.disabled=false; $("resetBtn").disabled=false;
+      $("exportCsv").disabled=false; $("exportXlsx").disabled=false;
+      toast(`Loaded ${rows.length} calls from ${file.name}`);
+      // Offline mode: analyze the freshly uploaded log immediately (free + instant, always current rules).
+      if(!apiKeyEl.value.trim()) runAnalysis();
+    }catch(err){ console.error(err); toast("Could not parse file: "+err.message,true); }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+/* Find the sheet that looks like the call log, resolve columns, build objects */
+function extractRows(wb){
+  let best=null;
+  for(const name of wb.SheetNames){
+    const grid=XLSX.utils.sheet_to_json(wb.Sheets[name],{header:1,defval:"",raw:false});
+    const hdrIdx=findHeaderRow(grid);
+    if(hdrIdx<0) continue;
+    const headers=grid[hdrIdx].map(h=>String(h||"").trim());
+    const map=resolveColumns(headers);
+    if(map.transcription==null && map.status==null) continue;
+    const body=grid.slice(hdrIdx+1).filter(r=>r.some(c=>String(c).trim()!==""));
+    if(!best || body.length>best.body.length) best={headers,map,body};
+  }
+  if(!best) return [];
+  return best.body.map(r=>{
+    const g=i=> (i==null||i<0)?"":String(r[i]??"").trim();
+    const o={
+      status:g(best.map.status), company:g(best.map.company), numberName:g(best.map.numberName),
+      tracking:g(best.map.tracking), startTime:g(best.map.startTime), duration:g(best.map.duration),
+      caller:g(best.map.caller), phone:g(best.map.phone), email:g(best.map.email),
+      firstTime:g(best.map.firstTime), keywords:g(best.map.keywords),
+      recording:g(best.map.recording), note:g(best.map.note), transcription:g(best.map.transcription)
+    };
+    o.key=[o.tracking,o.startTime,o.phone,o.duration].join("|");
+    // Only reuse cached AI results (they are expensive to recompute). The offline heuristic is ALWAYS
+    // recomputed fresh from the uploaded log, so flagging reflects the current rules — never a stale cache.
+    const cached=ANALYSIS[o.key];
+    o.analysis=(cached && /^ai:/.test(String(cached.engine||""))) ? cached : null;
+    return o;
+  });
+}
+
+function findHeaderRow(grid){
+  for(let i=0;i<Math.min(grid.length,8);i++){
+    const cells=grid[i].map(c=>String(c||"").toLowerCase());
+    const joined=cells.join(" ");
+    if((joined.includes("call status")||joined.includes("tracking number")||joined.includes("transcription"))
+       && cells.filter(c=>c.trim()).length>=3) return i;
+  }
+  return -1;
+}
+
+function resolveColumns(headers){
+  const lc=headers.map(h=>h.toLowerCase());
+  const find=(pred)=>{ const i=lc.findIndex(pred); return i<0?null:i; };
+  return {
+    status: find(h=>h==="call status"||h.includes("status")),
+    company: find(h=>h==="company name"||h==="company"),
+    numberName: find(h=>h==="number name"||(h.includes("number")&&h.includes("name"))),
+    tracking: find(h=>h.includes("tracking")),
+    startTime: find(h=>h.includes("start")||h==="date"||h.includes("date")||h.includes("time")),
+    duration: find(h=>h.includes("duration")),
+    caller: find(h=>h==="name"||h==="caller name"||h==="caller"),
+    phone: find(h=>h.includes("phone")||h.includes("caller number")),
+    email: find(h=>h.includes("email")),
+    firstTime: find(h=>h.includes("first")),
+    keywords: find(h=>h.includes("keyword")),
+    recording: find(h=>h.includes("recording")),
+    note: find(h=>h==="note"||h==="notes"),
+    transcription: find(h=>h.includes("transcri"))
+  };
+}
+
+function buildStatusFilter(){
+  const sel=$("fStatus");
+  const set=[...new Set(CALLS.map(c=>c.status).filter(Boolean))].sort();
+  sel.innerHTML='<option value="">All CallRail statuses</option>'+set.map(s=>`<option>${esc(s)}</option>`).join("");
+}
+
+/* ============================================================
+   ANALYSIS ENGINES
+   ============================================================ */
+analyzeBtn.addEventListener("click",runAnalysis);
+stopBtn.addEventListener("click",()=>{stopFlag=true;stopBtn.textContent="Stopping…";});
+
+async function runAnalysis(){
+  if(running) return;
+  const useAI=!!apiKeyEl.value.trim();
+  // Offline heuristic recomputes EVERY call fresh from the uploaded log (instant + free), so results always
+  // reflect the current rules. AI only fills what isn't already cached (to avoid re-billing).
+  const todo=useAI ? CALLS.filter(c=>!c.analysis) : CALLS.slice();
+  if(!todo.length){ toast("All calls already analyzed — click “Reset Analysis” to re-run them."); return; }
+  running=true; stopFlag=false;
+  analyzeBtn.style.display="none"; stopBtn.style.display="inline-flex"; stopBtn.textContent="■ Stop";
+  $("progressWrap").classList.add("show");
+  const total=todo.length; let done=0;
+  const conc=useAI?parseInt(concEl.value):Math.min(200, total);
+  let lastRender=0;
+
+  const worker=async(call)=>{
+    if(stopFlag) return;
+    try{
+      const res = useAI ? await analyzeWithAI(call) : heuristicAnalyze(call);
+      call.analysis=res; ANALYSIS[call.key]=res;
+    }catch(err){
+      console.error("analysis error",err);
+      // graceful fallback to heuristics on AI failure
+      const res=heuristicAnalyze(call); res.engine="heuristic (AI failed)"; res.error=String(err.message||err);
+      call.analysis=res; ANALYSIS[call.key]=res;
+    }
+    done++;
+    setProgress(done,total,call.caller||call.phone||"call");
+    // Throttle the full re-render by elapsed time rather than a fixed call count — for a large
+    // heuristic run (thousands of rows, no network wait per item) rebuilding the whole table every
+    // 5 calls was O(n^2) and made big uploads look frozen.
+    const now=performance.now();
+    if(now-lastRender>300 || done===total){ lastRender=now; saveCache(); renderAll(); }
+    // Heuristic analysis has no network await, so without an explicit yield here the whole run is
+    // one uninterrupted synchronous block — the tab can't paint progress or react to the Stop button
+    // until every row is done. Yield periodically (not every item — background/inactive tabs clamp
+    // setTimeout hard, so one yield per row could turn a big run into a many-minute stall).
+    if(done%20===0) await sleep(0);
+  };
+
+  // simple concurrency pool
+  const queue=[...todo];
+  const pool=Array.from({length:Math.max(1,conc)},async()=>{
+    while(queue.length && !stopFlag){ await worker(queue.shift()); }
+  });
+  await Promise.all(pool);
+
+  saveCache(); renderAll();
+  running=false;
+  analyzeBtn.style.display="inline-flex"; stopBtn.style.display="none";
+  setTimeout(()=>$("progressWrap").classList.remove("show"),1200);
+  toast(stopFlag?`Stopped — ${done}/${total} analyzed.`:`Analysis complete — ${done} calls processed.`);
+}
+
+function setProgress(done,total,label){
+  const pct=Math.round(done/total*100);
+  $("progressFill").style.width=pct+"%";
+  $("progressText").textContent=`Analyzing… ${done} / ${total} — ${label}`;
+  $("progressPct").innerHTML=`<b>${pct}</b>%`;
+}
+
+/* ---------- AI (Claude) ---------- */
+const SYSTEM_PROMPT = `You are a call-analysis assistant for a local home-services company (e.g. plumbing / drain cleaning). You review a single phone call from CallRail and classify it precisely.
+
+You are given: the CallRail call status, whether the caller is a first-time caller, the dispatcher's note, and the full transcription. Some calls (Missed / Abandoned) have no transcription.
+
+Produce a JSON object with these fields.
+
+IMPORTANT — work in this order: FIRST extract the facts ("key_facts"), THEN write the summary from those facts. The extraction step exists so that nothing stated on the call is lost. Never write the summary from memory or impression — write it from what you extracted.
+
+0. "key_facts": comb the ENTIRE transcription from the first line to the last and extract EVERY concrete piece of information the caller or agent actually stated. Be exhaustive — this is a capture step, not a summary. Use the empty string "" for any string field not stated on the call, and an empty array [] for any list field with nothing to record. NEVER invent, infer, or guess a value; only record what was actually said. Transcripts are auto-generated and often garbled — clean up obvious mis-transcriptions (e.g. spelled-out names, "H Vac" -> "HVAC") but do not change the meaning.
+   - "customer_name": the caller's name as given (including spelling corrections made on the call).
+   - "service_address": the street address, city, state, and/or ZIP as given.
+   - "problem": the core issue or request, in one clause.
+   - "symptoms": EVERY specific symptom or observation mentioned (e.g. "not cooling", "blowing warm air", "water pooling under the unit", "rattling noise", "breaker keeps tripping").
+   - "equipment": the system/unit involved and any details given (e.g. "two AC systems, upstairs unit not working", "20-year-old gas furnace in the attic", "50-gallon water heater", "refrigerant recently topped off by another company").
+   - "issue_duration": how long the problem has been going on, or when it started.
+   - "prior_work": any previous repairs, other companies used, home warranty, membership, or past visits mentioned.
+   - "diagnosis": any explanation, likely cause, troubleshooting, or advice the agent gave.
+   - "pricing": EVERY price, fee, quote, or cost condition mentioned (e.g. "$79 diagnostic fee, credited toward the repair if work is done", "no cancellation fee").
+   - "appointment_offered": the day/time window the agent offered, if any.
+   - "appointment_agreed": the day/time actually agreed to, if any.
+   - "next_availability": the next available slot the agent quoted when they could not come sooner.
+   - "caller_concerns": objections, hesitations, or constraints the caller raised (e.g. "needs same-day service", "calling other companies to compare", "price too high", "no one home until 5").
+   - "agent_promises": commitments the agent made (e.g. "a team member will call back to confirm", "added to the urgency/cancellation list", "tech will call one hour before arrival").
+   - "outcome": how the call actually ended, in one clause.
+   - "other_details": ANY other concrete detail that was stated and does not fit the fields above — email address, callback number, access/gate/pet instructions, referral source, landlord vs. homeowner, number of stories, etc. Do not let real information fall out of the record: if it was said and a reader would want it, put it here.
+
+1. "summary": now write the recap, composed FROM the key_facts you just extracted. EVERY non-empty key_fact must be reflected in the summary — if you extracted it, it belongs in the narrative. Conversely, never state anything that is not in key_facts or the transcript. Write for a neutral third party explaining what happened to someone skimming a report: plain, everyday language, correct grammar, third person and past tense, referring to the people only as "the caller" and "the agent" (never "I", "you", or "we"). Do NOT quote the garbled transcript verbatim — restate it cleanly. Deliver it as a single paragraph (no labels, bullets, or line breaks). ALWAYS state explicitly and specifically what service the caller requested or the problem they needed solved (e.g. "asked to have a non-cooling AC unit diagnosed", "requested a kitchen sink unclog", "wanted a quote for a sewer line camera inspection"). If the caller did not request a service, say what they wanted instead. Then walk through the call in order: the problem and its symptoms, the equipment involved, how long it had been happening, any prior work or warranty, the address/area, what the agent explained or diagnosed, every price or fee quoted and its conditions, what appointment was offered and whether it was agreed to (with the day/time), the next availability if the agent could not come sooner, any concerns the caller raised and how the agent answered them, any promises the agent made, and exactly how the call ended. LENGTH IS WHATEVER COMPLETENESS REQUIRES — typically 5 to 10 sentences, more for a long or detailed call. Do not pad with filler, but do not omit a single stated fact. The reader must understand the whole call, and everything material in it, without ever opening the transcript. If there is no transcription, return one short sentence (e.g. "Missed call — no transcription available.").
+
+2. "requested_service": a short, accurate noun phrase (2-6 words) naming the SPECIFIC service or work the caller actually asked about, based strictly on the transcription — e.g. "Water heater repair", "Kitchen sink unclog", "Sewer line camera inspection", "Drain cleaning quote", "Reschedule existing appointment". Read the caller's actual words; do not guess or use a generic placeholder. If the call is NOT a service request (spam, sales/vendor/marketing, job seeker, wrong number, an internal/agency test or check-in call, or a call that dropped before any service was mentioned), return exactly "—". Never output vague fillers like "a service request" or "service inquiry".
+
+2b. "scheduled_time": if an appointment was booked, the scheduled day/time as stated on the call (e.g. "Today, 2-4 PM", "Tomorrow, 8:30-9 AM", "Thursday morning", "Fri the 7th"). If the call is a "Not Available" case (agent could not book within the day / caller declined), return the NEXT AVAILABLE appointment day/time the agent offered instead. For any other non-booked call, return exactly "N/A". Do not guess a time that was not stated.
+
+3. "is_service_call": true if the caller is a genuine prospective or existing customer contacting the business about its services (booking, quote, scheduling, existing job). false for spam, sales/vendor pitches, job seekers, wrong numbers, or calls meant for a different company. Also false when the agent answered and spoke (e.g. a greeting) but the caller never said anything back before the line dropped — with no response from the caller, no service was ever requested. IMPORTANT: a call being long or detailed is NOT evidence it is a service call — e.g. a caller who talks at length to reach a specific employee about a personal matter (a dispute, a delivery, a message for someone) that has nothing to do with the business's services is false, no matter how substantive the conversation is. Judge strictly by whether the caller's own words relate to the business's actual services.
+
+4. "booking_status": one of "Booked", "Not Booked", "N/A".
+   - "Booked" if the agent and caller reach an agreement / an appointment is actually set, OR the agent tells the caller that someone will call them back. IMPORTANT: if the agent only OFFERS or says they can still book an appointment/service but the caller does not respond or does not agree, that is "Not Booked" — an offer alone is not a booking.
+   - "Booked" also if the call disconnected AFTER an agreement was reached OR after the agent told the caller that someone would contact/call them back.
+   - "Not Booked" if it IS a service call but no appointment was agreed and no callback was promised.
+   - "Not Booked" if the caller is ONLY following up on, confirming, or checking the status of an ALREADY-booked appointment and no NEW appointment is being set (in this case invalid_reason must be "Valid Call").
+   - "Not Booked" for EVERY other call where no appointment was agreed and no callback was promised — this INCLUDES all non-service categories: Abandoned, Missed, Incorrect Business, Job Application, Marketing, Spam, and Wrong Number. Do NOT use "N/A" — every call is either "Booked" or "Not Booked".
+
+5. "invalid_reason": exactly one of:
+   - "Valid Call" — a genuine service call (a real lead/customer). Use this whenever is_service_call is true, EVEN for repeat customers, and INCLUDING when the caller is only following up on an existing appointment (mark booking "Not Booked" in that case), unless a more specific invalid reason clearly applies.
+   - "Cancelled" — the caller called to CANCEL an existing appointment or service of their OWN (e.g. "I need to cancel my appointment"). booking_status is "Not Booked". Do NOT use this when the agent merely mentions cancellations as a scheduling mechanism — e.g. "I can add you to the urgency/cancellation list if I have any cancellations" or "we'll call if we get a cancellation" (those refer to OTHER customers' cancellations and are a wait-list / Not Available situation, not this caller cancelling). A call where the caller wants service but the company is full for the day is "Not Available", not "Cancelled".
+   - "Not Available" — a genuine service call that did NOT book specifically because of scheduling/availability: the agent said the company could not serve the caller within the day (no same-day availability), OR the caller did not agree to the schedule the agent offered. is_service_call is true and booking_status is "Not Booked". (If they DID agree to an offered time, it is "Valid Call" / "Booked" instead.) EXCEPTION: if the caller AGREED to be placed on a cancellation / urgency / priority / standby wait-list (to be contacted if an earlier slot opens up), do NOT use "Not Available" — that is a secured lead, so use "Valid Call" with booking_status "Booked".
+   - "Abandoned" — the CallRail status is Abandoned.
+   - "Missed" — the CallRail status is Missed.
+   - "Disconnected" — the call ended with no proper resolution and no agreement reached between the agent and the caller — the line dropped, the caller hung up, or the call simply trailed off — AND the caller did not describe a genuine, identifiable need for the business's services. Mark booking_status "Not Booked" (never "N/A" for a disconnected call) and is_service_call false. This includes the case where the agent answered and spoke but got NO response from the caller before the line ended — no service was requested. IMPORTANT — do NOT use "Disconnected" for a genuine service inquiry that simply didn't end in a booking: if the caller clearly described a real problem or request related to the business's services, that is "Valid Call" with booking_status "Not Booked", even though no appointment/callback was agreed — a real lead that didn't book must stay a tracked "Not Booked" lead, not get relabeled "Disconnected". "Disconnected" is reserved for calls with no identifiable service content at all AND no proper conclusion — e.g. a caller asking for a specific employee about an unrelated personal matter, where the call cuts off with no resolution. If that SAME kind of call instead reaches a resolution (the agent takes the message and closes out with a goodbye), use "Valid Call" with booking_status "Not Booked" instead, since the caller was genuinely engaged with by the business even though it wasn't a service request. If an agreement WAS reached, or the agent said someone would contact/call the caller back BEFORE the drop, use "Valid Call" instead with booking_status "Booked". Also do NOT use "Disconnected" when the CALLER explicitly ends the call for an unrelated/interrupting reason (e.g. "my boss is calling") and states that SHE will call back — that is a real, if incomplete, contact attempt, not a technical disconnect; use "Valid Call" with booking_status "Not Booked" instead. Conversely, DO use "Disconnected" (even though the caller stated a genuine, identifiable need, e.g. following up on an appointment) when a TECHNICAL/audio failure — static, the agent saying they can't hear the caller, a dropped line — ends the call before that need was actually addressed: the caller's stated purpose never got resolved, so this is a dropped line, not a handled (if unbooked) contact. A booking/callback confirmed BEFORE the technical failure still wins as "Valid Call".
+   - "Incorrect Business" — use ONLY when the caller clearly reached the WRONG company: either (a) they explicitly ask for a different company by name / think they dialed someone else, or (b) their PRIMARY request is for a service this business plainly does not offer AND the agent explicitly says they don't do it and refers them elsewhere. Do NOT use "Incorrect Business" for a normal service call where the agent merely mentions or recommends another provider as an aside, gives a referral for an unrelated extra, or handles the caller's actual request. For rule (b), "refers them elsewhere" means to a DIFFERENT COMPANY — an agent transferring the caller to another department of THIS SAME business (e.g. "let me transfer you to our billing department") is routine internal handling of an existing customer's request, not evidence of the wrong business, and stays "Valid Call". A caller who reached this business ON PURPOSE but for a personal/unrelated matter (e.g. asking for a specific employee about an incident at a different store) is NOT "Incorrect Business" — if the call reaches a resolution (the agent takes the message, closes out with a goodbye), use "Valid Call" with booking_status "Not Booked" instead; if it cuts off abruptly with no resolution, use "Disconnected". When in doubt, it is a "Valid Call".
+   - "Job Application" — the caller is seeking employment.
+   - "Marketing" — the caller is a vendor, salesperson, or offering another service to the business. This includes a call that the agent quickly recognized as a vendor/marketing pitch and hung up on within a few seconds — even a short, cut-off transcript ("Hi, this is calling from [X], we help businesses with...") is still "Marketing", not "Disconnected", as long as the caller's own words identify them as a vendor/salesperson. Only fall back to "Disconnected" when the transcript gives no indication at all of who the caller was or why they called.
+   NOTE ON REPEAT CALLERS: "Repeat Caller" is NOT a category and must never be returned. Whether the caller is a first-time or a repeat/returning caller is recorded in a separate field and has NO bearing on this classification. Always classify a repeat caller on the call's own merits — if they request, book, follow up on, or discuss service, it is a "Valid Call" with booking_status set to Booked or Not Booked. If a repeat caller's call has no service purpose, pick the invalid reason that actually fits (Spam, Marketing, Wrong Number, Job Application, Incorrect Business, or Disconnected if the call had no clear conclusion).
+   - "Spam" — spam/robocall. Also treat "you need to get your business verified on Google" pitches as Spam.
+   - "Wrong Number" — the caller dialed the wrong number entirely.
+
+6. "confidence": "High", "Medium", or "Low".
+
+7. "agent_tone": one of "Friendly", "Professional", "Neutral", "Curt", "Rude", "N/A". Rate how the agent/dispatcher spoke to the caller. Use "Rude" ONLY when the agent is genuinely disrespectful, dismissive, impatient, hostile, or condescending. Use "Curt" for brusque/short-but-not-disrespectful. Use "N/A" when there is no agent speech (missed, abandoned, voicemail, or no transcription).
+
+8. "agent_tone_reason": a short phrase (max ~14 words) explaining the tone rating. Use an empty string when tone is "N/A".
+
+Rules of precedence: If CallRail status is Missed -> "Missed". If status is Abandoned -> "Abandoned". If status is "Answered Call" and there is NO transcription at all (regardless of duration or what the dispatcher note says), use "Disconnected" with is_service_call false and booking_status "Not Booked" — the call connected but there's no actual conversation content to judge. If status is Voicemail and the caller left a message requesting service and/or asking for a callback, use "Valid Call" with is_service_call true and booking_status "Booked" (a voicemail box was actually reached, so judge it from what the caller said, not the status label). Otherwise judge from the transcription/note. Prefer "Valid Call" for real service leads. Return ONLY the JSON object.`;
+
+/* Extraction-first grounding: the model must fill in every concrete fact it can find BEFORE it writes
+   the narrative summary, so the summary is composed from evidence instead of impression. Field order
+   matters — structured output is generated in schema order, so key_facts must come before summary. */
+const FACTS_FIELDS = ["customer_name","service_address","problem","symptoms","equipment","issue_duration",
+  "prior_work","diagnosis","pricing","appointment_offered","appointment_agreed","next_availability",
+  "caller_concerns","agent_promises","outcome","other_details"];
+const FACTS_LIST = ["symptoms","pricing","caller_concerns","agent_promises","other_details"];  // array-valued
+const FACTS_SCHEMA = {
+  type:"object",
+  properties:FACTS_FIELDS.reduce((o,f)=>{
+    o[f]= FACTS_LIST.includes(f) ? {type:"array",items:{type:"string"}} : {type:"string"};
+    return o;
+  },{}),
+  required:FACTS_FIELDS,
+  additionalProperties:false
+};
+
+const AI_SCHEMA = {
+  type:"object",
+  properties:{
+    key_facts:FACTS_SCHEMA,
+    summary:{type:"string"},
+    requested_service:{type:"string"},
+    scheduled_time:{type:"string"},
+    is_service_call:{type:"boolean"},
+    booking_status:{type:"string",enum:["Booked","Not Booked","N/A"]},
+    invalid_reason:{type:"string",enum:REASONS},
+    confidence:{type:"string",enum:["High","Medium","Low"]},
+    agent_tone:{type:"string",enum:["Friendly","Professional","Neutral","Curt","Rude","N/A"]},
+    agent_tone_reason:{type:"string"}
+  },
+  required:["key_facts","summary","requested_service","scheduled_time","is_service_call","booking_status","invalid_reason","confidence","agent_tone","agent_tone_reason"],
+  additionalProperties:false
+};
+
+async function analyzeWithAI(call){
+  const userText =
+`CallRail Status: ${call.status||"(unknown)"}
+First-Time Caller: ${call.firstTime||"(unknown)"}
+Caller: ${call.caller||"(unknown)"} | Phone: ${call.phone||"(unknown)"}
+Duration (s): ${call.duration||"0"}
+Dispatcher Note: ${call.note||"(none)"}
+
+Full Transcription:
+${call.transcription || "(no transcription available)"}`;
+
+  const body={
+    model:modelEl.value,
+    max_tokens:3000,   // key_facts extraction + a complete summary needs headroom; 1200 truncated long calls
+    system:[{type:"text",text:SYSTEM_PROMPT,cache_control:{type:"ephemeral"}}],
+    messages:[{role:"user",content:userText}],
+    output_config:{format:{type:"json_schema",schema:AI_SCHEMA}}
+  };
+
+  const resp=await fetchWithRetry("https://api.anthropic.com/v1/messages",{
+    method:"POST",
+    headers:{
+      "content-type":"application/json",
+      "x-api-key":apiKeyEl.value.trim(),
+      "anthropic-version":"2023-06-01",
+      "anthropic-dangerous-direct-browser-access":"true"
+    },
+    body:JSON.stringify(body)
+  });
+  const data=await resp.json();
+  if(data.type==="error") throw new Error(data.error?.message||"API error");
+  const txt=(data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
+  const parsed=JSON.parse(txt);
+  parsed.engine="ai:"+modelEl.value;
+  return normalize(parsed, call);
+}
+
+async function fetchWithRetry(url,opts,tries=4){
+  let last;
+  for(let i=0;i<tries;i++){
+    try{
+      const r=await fetch(url,opts);
+      if(r.status===429||r.status>=500){
+        const ra=parseInt(r.headers.get("retry-after")||"0")||Math.min(30,2**i);
+        await sleep(ra*1000); last=new Error("HTTP "+r.status); continue;
+      }
+      if(!r.ok){ const t=await r.text(); throw new Error("HTTP "+r.status+": "+t.slice(0,200)); }
+      return r;
+    }catch(e){ last=e; await sleep(Math.min(8000,800*2**i)); }
+  }
+  throw last||new Error("request failed");
+}
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+
+/* ---------- Heuristic engine (no API key) ---------- */
+function heuristicAnalyze(call){
+  const res=classifyHeuristic(call);
+  const tn=heuristicTone(call);
+  res.agent_tone=tn.tone; res.agent_tone_reason=tn.reason;
+  if((call.transcription||"").trim() || (call.note||"").trim()) res.summary=buildHeuristicSummary(call,res);
+  return res;
+}
+
+/* Dispatcher notes often end with the dispatcher's OWN classification tag (e.g. "| Wrong Number",
+   "| NB | Valid Lead") — that's a human's own label for the call, not something actually SAID on it, and
+   it can be wrong (we've seen a dispatcher tag a call "Wrong Number" for a call that plainly wasn't one).
+   Strip it before the note feeds into our own keyword-based signal detection — otherwise wrongNum/spam/
+   job-application/marketing detection just parrots back the dispatcher's own tag instead of judging the
+   actual content — or into the exported summary, which would otherwise visibly repeat that tag as if it
+   were part of the call. Does NOT touch the raw call.note used for direct display, and does not touch the
+   separate "Booked" dispatcher-tag check, which intentionally trusts that one tag as a booking signal. */
+const NOTE_TAG_WORD="(?:valid lead|valid|invalid lead|invalid|nb|not booked|booked(?: today)?|wrong number|incorrect business|job application|marketing|spam|cancelled|not available|disconnected(?: call)?|abandoned|missed(?: call)?|no answer|repeat caller|repeat|voicemail|new lead|lead|follow-?up(?: call)?)";
+function stripDispatcherTag(note){
+  if(!note) return note;
+  let s=String(note);
+  const tailMatch=s.match(/\n{1,2}([A-Za-z]{1,4})\s*$/);
+  let tail="";
+  if(tailMatch){ tail=tailMatch[0]; s=s.slice(0, s.length-tail.length); }
+  const trailingTagsRe=new RegExp("(?:\\s*\\|\\s*"+NOTE_TAG_WORD+"\\.?)+\\s*$","i");
+  s=s.replace(trailingTagsRe,"");
+  return s+tail;
+}
+
+/* Turn a CallRail dispatcher note (a human-written, usually pipe-delimited recap of the whole call)
+   into clean, readable prose. Returns null if the note has no usable narrative. */
+function summaryFromNote(note){
+  if(!note) return null;
+  // split into blocks by blank lines; the narrative is the block containing the pipe-delimited recap
+  const blocks=String(note).replace(/\r/g,"").split(/\n{2,}/).map(b=>b.trim()).filter(Boolean);
+  let block=blocks.filter(b=>b.includes("|")).sort((a,b)=>b.split("|").length-a.split("|").length)[0]
+          || blocks.sort((a,b)=>b.length-a.length)[0];
+  if(!block) return null;
+  // drop a leading "Dispatch: Name |" (or "dispatcher:") prefix
+  block=block.replace(/^['"\s]*dispatch(er)?\s*:\s*[^|]*\|/i,"").replace(/^['"\s]*dispatch(er)?\s*:\s*/i,"").trim();
+  let segs=block.split("|").map(s=>s.replace(/\s+/g," ").trim()).filter(Boolean);
+  // Bounded gap (not a bare .*): an unbounded ".*" let the number and suffix match across unrelated
+  // sentences — e.g. "10 years old ... he is on his way to work" was being read as a "10 ... Way" street
+  // address purely because SOME digit and the common word "way" both appeared anywhere in the segment,
+  // discarding the entire narrative as if it were just an address line.
+  const isAddr=s=> /\b\d{1,6}\s+\w+.{0,25}?\b(st|street|rd|road|ave|avenue|ln|lane|dr|drive|way|blvd|ct|court|place|pl|circle|terrace|hwy|highway)\b/i.test(s)
+                || /\b0\d{4}\b/.test(s)
+                || (/\b(MA|Mass|Massachusetts)\b/.test(s) && s.length<45);
+  const isTag=s=> s.length<4
+                || /^(valid lead|valid|booked today|booked|not booked|invalid|spam|repeat caller|repeat|voicemail|missed call|missed|abandoned|no answer|new lead|lead|follow-?up( call)?|unclog drain|drain cleaning|hydrojet|jetting|-?\s*rei)\.?$/i.test(s);
+  segs=segs.filter(s=>!isAddr(s)&&!isTag(s));
+  if(!segs.length) return null;
+  const text=segs.map(s=>{
+    s=s.replace(/\bdispatch(er)?\b/gi,"the agent").replace(/\bthe representative\b/gi,"the agent").replace(/\brep\b/gi,"the agent");
+    s=s.replace(/(^|[^a-z])caller\b/gi,(m,p)=>p+"the caller").replace(/\bthe the caller\b/gi,"the caller");
+    s=s.charAt(0).toUpperCase()+s.slice(1);
+    if(!/[.!?]$/.test(s)) s+=".";
+    return s;
+  }).join(" ").replace(/\s+/g," ").replace(/\bThe the caller\b/g,"The caller").trim();
+  return text.length>25?text:null;
+}
+
+/* Build a plain-language, easy-to-read recap of the call.
+   Rather than stitching raw (often garbled) transcript speech, we detect clean facts
+   — what the caller wanted, where, price, timing, and the outcome — and compose grammatical sentences. */
+/* Detect a genuine, caller-initiated cancellation of an existing appointment. SPEAKER-AWARE: the
+   transcript is split into "Caller:" / "Agent:" turns, and we only count a cancellation when the
+   CALLER asks to cancel their own appointment, or the AGENT confirms/processes a cancellation
+   request. This deliberately ignores the very common sales-script phrases agents repeat in BOOKED
+   calls — "there's no fee to cancel", "it's free to cancel", "we'll cancel it for you if you find
+   someone sooner", "if I have any cancellations" (waitlist) — which are not this caller cancelling.
+   Used for the "Cancelled" category. */
+function detectCancellation(text){
+  const raw=(text||"");
+  // Split into speaker turns using the "Caller:" / "Agent:" labels CallRail transcripts use.
+  const parts=raw.split(/\b(Caller|Agent)\s*:/i);
+  const turns=[];
+  for(let k=1;k<parts.length-1;k+=2){ turns.push([parts[k].toLowerCase(), (parts[k+1]||"").toLowerCase()]); }
+  if(!turns.length) turns.push(["caller", raw.toLowerCase()]);   // no speaker labels → treat whole blob as caller
+
+  // IMPLICIT cancellation: the caller phones back about an EXISTING appointment to say the problem is
+  // already resolved / was fixed by someone else, so they no longer need the visit — often WITHOUT ever
+  // saying the word "cancel" (e.g. "I called earlier... it got fixed, just wanted to let you know").
+  const callerBlob=turns.filter(x=>x[0][0]==="c").map(x=>x[1]).join(" ");
+  const priorRef=/called (?:you )?(?:earlier|before|back|in earlier)|call(?:ed)? in earlier|i (?:have|had) (?:a|an) (?:appointment|scheduled)|already (?:have|had|booked|scheduled)|scheduled (?:a|an|my|it|for)|booked (?:a|an|my|it|with|the appointment)|appointment (?:for|scheduled|with you)|i booked/.test(callerBlob);
+  const resolved=/(?:it|everything|the ac|the a\/?c|the air|the unit|the issue|the problem|the thing) (?:got|is|was|already|'?s) (?:fixed|resolved|working|running|taken care)|somebody (?:else )?(?:fixed|took care)|got (?:it|someone) (?:to )?fix|already (?:fixed|got it fixed|taken care|resolved)|no longer need|don'?t need (?:you|it|to come|the tech|anymore|to come out)|we'?re (?:good|all set|fine|okay) now|it'?s (?:working|running) (?:now|fine|good)|fixed it for us|it got fixed|got it fixed|been fixed|is fixed now/.test(callerBlob);
+  // Caller went with another company instead. Past-tense "found" (never "find"), so the conditional
+  // "if I FIND someone sooner I'll call you back" — which is a booking, not a cancellation — is excluded.
+  const wentElsewhere=/\bfound (?:someone|somebody|some ?body|another|a different|a company)\b|\b(?:went|going) with (?:someone|somebody|another)\b|\b(?:used|using) (?:someone|somebody) else\b/.test(callerBlob);
+  if(priorRef && (resolved || wentElsewhere)) return true;
+
+  if(!/cancel/i.test(raw)) return false;   // remaining rules all require the literal word "cancel"
+
+  // Caller genuinely asking to cancel THEIR OWN existing appointment (present/imperative intent).
+  const callerIntent=t=>{
+    // "you canceled my appointment yesterday" = complaint that the COMPANY cancelled — not this caller.
+    if(/\byou cancel(?:l?ed)?\b[^.]{0,20}(yesterday|last month|last week|earlier|already)/.test(t)) return false;
+    const conditional=/just in case|if i (?:don'?t|can'?t|do find|find)|call you back|in case i (?:don'?t|do)/.test(t);
+    const hit=
+      /\b(?:want|wanna|need|would like|like|trying|have|call(?:ed|ing)? in)\s+to cancel\b/.test(t) ||
+      /\bcancel (?:my|the|this|that) (?:appointment|service|booking|visit|appt)\b/.test(t) ||
+      /^\s*(?:i want to |i'?d like to |i need to |please )?cancel(?:l?ed)?\s+(?:appointment|completely|it|my|the|this|that)\b/.test(t) ||
+      /\bcan (?:i|you) (?:please )?(?:just )?cancel (?:it|my|the|this|that)\b/.test(t) ||
+      /\bi can cancel (?:it|my|the|this|that)\b/.test(t) ||
+      /\b(?:please|need to|would like to|want to) cancel\b/.test(t) ||
+      /\bcancel (?:it|that)\.\s*(?:i need|i want|need someone)/.test(t) ||
+      /\bcancel completely\b/.test(t) ||
+      /\bjust cancel(?:l?ing|ing)?\b/.test(t);
+    // A purely conditional/future "cancel" (in case I find someone) is NOT a cancellation, unless the
+    // caller also explicitly names cancelling their appointment now.
+    if(conditional && !/cancel (?:my|the|this|that) (?:appointment|service)|cancel completely|please cancel/.test(t)) return false;
+    return hit;
+  };
+
+  // Agent confirming / processing a cancellation the caller just requested (NOT the "free to cancel" pitch).
+  const agentConfirm=t=>{
+    if(/confirm the cancellation|cancellation request|mark (?:this|it) as (?:a )?cancellation|process (?:the|this|your) cancellation/.test(t)) return true;
+    if(/rescheduling or just cancel/.test(t)) return true;   // "Are we rescheduling or just canceling?"
+    // The agent ACKNOWLEDGES that the caller is cancelling ("Sorry that you're canceling"). This is the only
+    // reliable signal when the transcription garbles the caller's own word — e.g. "I want to cancel that"
+    // came through as "I want to camp. That." — so the word "cancel" survives only in the agent's reply.
+    // (No lookbehind: it breaks older Safari. The "if you're canceling" pitch case is excluded explicitly.)
+    if(/(?:sorry|sad|understand|got it)[^.]{0,25}(?:you'?re|you are|your) cancel(?:l?ing|l?ation)?\b/.test(t)) return true;
+    if(/(?:you'?re|you are) cancel(?:l?ing)\b/.test(t) && !/if (?:you'?re|you are) cancel/.test(t)) return true;
+    // "I have got that canceled for you" / "I could go ahead and get this canceled" — done, not a pitch.
+    if(/(?:i have|i'?ve|\bi'?ll go ahead and|go ahead and|already|i can go ahead and|i could|i can)(?: \w+){0,2} (?:got|get) (?:that|this|it) cancel(?:l?ed)/.test(t)
+       && !/free|no fee|if you|call around|find (?:someone|somebody)|quicker|sooner/.test(t)) return true;
+    return false;
+  };
+
+  for(const [who,t] of turns){
+    if(who[0]==="c" && callerIntent(t)) return true;
+    if(who[0]==="a" && agentConfirm(t)) return true;
+  }
+  return false;
+}
+
+/* Agent offered to put the caller on a cancellation / urgency / priority / standby wait-list
+   (contacted if an earlier slot opens up). When the caller agrees, this is a secured lead -> Booked. */
+function offeredWaitlist(lc){
+  return /(urgency|urgent|cancellation|cancel|wait ?list|waiting list|standby|stand-by|priority) list|put (you|him|her|them) on (the |a |our )?(list|wait ?list|cancellation|standby|priority|urgency)|(call|let you know|reach out|contact you|reach back out|get back to you) if (someone|somebody|something|we get a|there'?s a|anything|an earlier|a spot|a slot) (cancel|cancels|open|opens|frees|comes up|becomes)|if (someone|somebody|anyone) cancels|if (we get|there'?s|we have) a cancellation|line (you|him|her|them) up (if|for|in)|lined up (if|in case|for)|(a slot|a spot|something|an earlier (time|slot|appointment)) opens up|in case (of a |there'?s a )?cancellation|bump you up if/i.test(lc);
+}
+
+/* Capitalize the first letter (shared by the summary builders). */
+function capFirst(s){ return s ? s.charAt(0).toUpperCase()+s.slice(1) : s; }
+
+/* Human labels for the AI's extracted key_facts. */
+const FACT_LABELS={customer_name:"Customer",service_address:"Address",problem:"Problem",symptoms:"Symptoms",
+  equipment:"Equipment / System",issue_duration:"How long",prior_work:"Prior work / warranty",diagnosis:"Agent's explanation",
+  pricing:"Pricing quoted",appointment_offered:"Appointment offered",appointment_agreed:"Appointment agreed",
+  next_availability:"Next availability",caller_concerns:"Caller's concerns",agent_promises:"Agent's promises",
+  outcome:"Outcome",other_details:"Other details"};
+
+/* Non-empty key_facts as [label, value] pairs (arrays joined). Empty when the call wasn't AI-analyzed. */
+function factPairs(a){
+  const kf=a && a.key_facts;
+  if(!kf) return [];
+  return Object.keys(FACT_LABELS).map(k=>{
+    const v=kf[k];
+    const s=Array.isArray(v) ? v.filter(Boolean).join("; ") : (v||"").toString().trim();
+    return s ? [FACT_LABELS[k], s] : null;
+  }).filter(Boolean);
+}
+
+/* Key facts block for the expanded row — the full evidence the summary was written from. */
+function renderKeyFacts(a){
+  const pairs=factPairs(a);
+  if(!pairs.length) return "";
+  return `<h4>Key Details from the Call</h4><div class="detail-meta">`+
+    pairs.map(([k,v])=>`<b>${esc(k)}:</b> ${esc(v)}`).join("<br>")+`</div>`;
+}
+
+/* Flatten key facts to one cell for CSV/Excel export. */
+function factsText(a){ return factPairs(a).map(([k,v])=>`${k}: ${v}`).join(" | "); }
+
+/* Extract the scheduled appointment day/time (e.g. "Tomorrow (between 8:30 and 9 am)", "Thursday morning",
+   "The 7th") from the transcript + dispatcher note. Returns "" if none is stated. */
+function detectScheduledTime(call){
+  const cap=capFirst;
+  const pickDay=(text)=>{
+    const lc=(text||"").toLowerCase();
+    const dm=lc.match(/\b(today|tomorrow|this (?:morning|afternoon|evening))\b/);
+    if(dm) return dm[1];
+    const wd=lc.match(/\b(next\s+)?(monday|tuesday|wednesday|thursday|friday|saturday|sunday)(\s+(?:morning|afternoon|evening))?\b/);
+    if(wd) return wd[0].replace(/\s+/g," ").trim();
+    const mo=(text||"").match(/\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}(?:st|nd|rd|th)?\b/i);
+    if(mo) return mo[0];
+    const dt=(text||"").match(/\b(?:on\s+)?the\s+(\d{1,2})(st|nd|rd|th)\b/i);
+    if(dt) return "the "+dt[1]+dt[2];
+    return "";
+  };
+  const from=(src)=>{
+    if(!src) return "";
+    // "between 10 and 12" style, or a bare "12 to 2" window followed by am/pm or an appointment keyword
+    const win=src.match(/between[^.\d]{0,15}(\d{1,2}(?::\d{2})?)\s*(?:and|to|-|through)\s*(\d{1,2}(?::\d{2})?)\s*(a\.?m\.?|p\.?m\.?)?/i)
+           || src.match(/\b(\d{1,2}(?::\d{2})?)\s*(?:and|to|through|-)\s*(\d{1,2}(?::\d{2})?)\s*(a\.?m\.?|p\.?m\.?)(?!\d)/i)
+           || src.match(/\b(\d{1,2}(?::\d{2})?)\s*(?:and|to|through|-)\s*(\d{1,2}(?::\d{2})?)\s*(a\.?m\.?|p\.?m\.?)?\s*(?:appointment|window|time ?frame|slot|arrival|noon)/i);
+    const winLabel = win ? ("between "+win[1]+" and "+win[2]+(win[3]?" "+win[3].replace(/\./g,"").toLowerCase():"")) : "";
+    // find the day near the appointment window first (ties the day to the booking), else anywhere in this source
+    let day="";
+    if(win){ day=pickDay(src.slice(Math.max(0,win.index-45), win.index+win[0].length+12)); }
+    if(!day) day=pickDay(src);
+    if(day && winLabel) return cap(day)+" ("+winLabel+")";
+    if(day) return cap(day);
+    if(winLabel) return cap(winLabel);
+    return "";
+  };
+  // prefer the dispatcher note (states the appointment cleanly), then the transcript
+  return from(call.note||"") || from(call.transcription||"") || "";
+}
+
+/* Convert a relative day ("Today", "Tomorrow", "This morning") into an actual date, based on the
+   date the call was made (call Start Time). Weekday names / explicit dates are left as-is. */
+function resolveSchedDate(label, startTime){
+  if(!label) return label;
+  const d = startTime ? new Date(startTime) : null;
+  if(!d || isNaN(d)) return label;
+  const fmt=dd=>dd.toLocaleDateString([], {month:"short",day:"numeric",year:"numeric"});
+  const tomorrow=()=>{ const x=new Date(d.getTime()); x.setDate(x.getDate()+1); return x; };
+  return label
+    .replace(/^today\b/i, fmt(d))
+    .replace(/^this (morning|afternoon|evening)\b/i, (m,p)=>fmt(d)+", "+p)
+    .replace(/^tomorrow\b/i, ()=>fmt(tomorrow()));
+}
+
+/* Business-agnostic: pull the requested service straight from the caller's own words,
+   for accounts whose services aren't in the fixed keyword taxonomy. Returns null if nothing clear. */
+function extractRequestedService(callerLc){
+  if(!callerLc) return null;
+  const m=callerLc.match(/\b(?:i need|i'?m looking for|looking to|i want|i'?d like|need to get|need someone to|need you to|need to|trying to|calling about|calling regarding|calling for|call is about|help with|issue with|issues with|problem with|got (?:a|some|an)|have (?:a|some|an)|there'?s a|we have|question about|to get|to schedule|to book|to fix|to repair|to replace|to install)\s+([a-z][a-z0-9 '\/-]{2,45})/);
+  if(!m) return null;
+  let p=m[1].split(/\b(?:and|but|because|so that|so|which|that|when|if|for the|at the|in the|on the|would|could|can you|do you)\b/)[0];
+  p=p.replace(/[.,!?;:].*$/,"").replace(/\b(please|today|right now|now|guys|really|just|kind of|sort of|actually|basically)\b/g,"").replace(/\s+/g," ").trim();
+  // reject closing pleasantries / non-service phrases the request patterns can accidentally catch
+  if(/\b(rest of your|good|great|nice|wonderful|blessed|lovely)\s+(day|one|weekend|morning|afternoon|evening|night)\b/.test(p)) return null;
+  if(/^(you|him|her|them|it|your|my|our|us|me)\b/.test(p) && p.split(" ").length<3) return null;
+  return p.replace(/[^a-z]/gi,"").length>=4 ? p : null;
+}
+
+/* Detect the specific service the caller requested, from transcript + note (taxonomy first, then a
+   business-agnostic extraction of the caller's own words). Returns "" when nothing specific is found. */
+function detectRequestedService(call){
+  const cleanNote=stripDispatcherTag(call.note||"");
+  const src=((call.transcription||"")+" "+cleanNote).toLowerCase();
+  const callerLc=(call.transcription||"").split(/\n+/).filter(l=>/^caller\s*:/i.test(l)).join(" ").toLowerCase();
+  // Caller's own words + the human-written dispatcher note (NOT the agent's speech) — an agent's aside
+  // ("if you ever need a water heater or any plumbing...") must not hijack the topic the way "water
+  // heater hotline" IVR greetings and courtesy pitches otherwise would.
+  const callerBlob=callerLc+" "+cleanNote.toLowerCase();
+  const hasT=(...ws)=>ws.some(w=>callerBlob.includes(w));
+  const reC=r=>r.test(callerLc), reS=r=>r.test(src), reB=r=>r.test(callerBlob);
+  let topic;
+
+  // ---- HVAC is checked FIRST, and judged from the CALLER's own words. Two reasons: this cascade used to
+  // be plumbing-only (so AC/furnace calls fell through), and matching against the whole transcript let the
+  // agent's diagnostic questions hijack the topic — an AC call where the agent asked "is it the boiler, the
+  // hot water heater?" was being labelled "a water heater problem".
+  const isAC   = reC(/\ba\/?c\b|\bair ?condition\w*|\bhvac\b|\bcooling\b|\bcondenser\b|\bcompressor\b|\brefrigerant\b|\bfreon\b/);
+  const isHeat = reC(/\bfurnace\b|\bno heat\b|\bheating\b|\bheat pump\b/);
+  if(isAC || isHeat){
+    const kind = isAC ? "AC" : "heating";
+    if(reC(/not cool|isn'?t cool|won'?t cool|not cold|not blowing|blowing (warm|hot)|\bno air\b|not working|stopped working|won'?t (turn on|come on|start)|broke|went out|quit/))
+      topic = isAC ? "an AC repair (not cooling)" : "a heating repair (no heat)";
+    else if(reS(/maintenance|tune ?-? ?up|check ?-? ?up|seasonal service/)) topic = kind+" maintenance / tune-up";
+    else if(reS(/\binstall|\breplace|new (unit|system)/))                   topic = kind+" installation or replacement";
+    else if(reC(/leak/))                                                    topic = kind+" unit leaking";
+    else if(reS(/estimate|quote|how much|price|cost/))                      topic = kind+" service pricing";
+    else topic = isAC ? "an air conditioning issue" : "a heating issue";
+  }
+  else if(reC(/\bthermostat\b/))                       topic="a thermostat issue";
+  // Checked BEFORE the generic duct/vent check: "power vent" is a water-heater exhaust configuration
+  // (a power-vent gas water heater), not HVAC ductwork — matching bare "vent" there mislabeled water
+  // heater tank-detail calls as "duct / vent work".
+  else if(reB(/\bpower vent\b|\btank size\b|\btankless\b|\b\d{1,3}[\s-]?gallons?\b/)) topic="a water heater problem";
+  else if(reC(/\bducts?\b|\bvents?\b|air quality/))    topic="duct / vent work";
+  else if(hasT("copy of the video","copy of that video"," the video","footage","camera")&&!hasT("cameras out")) topic="a copy of an inspection video";
+  else if(hasT("water heater")) topic="a water heater problem";
+  else if(hasT("garbage disposal","disposal")) topic="a garbage disposal issue";
+  else if(hasT("sewer","main line","mainline")) topic="a sewer or main-line issue";
+  else if(hasT("toilet")) topic="a toilet problem";
+  else if(hasT("kitchen sink")&&hasT("clog","back up","backup","backed up","drain")) topic="a clogged kitchen sink";
+  else if(hasT("sink")&&hasT("clog","back up","backup","backed up")) topic="a clogged sink";
+  else if(hasT("leak")) topic="a leak";
+  else if(hasT("jet","jetting")) topic="drain jetting";
+  else if(hasT("clog","backed up","back up","backup","snake")) topic="a clogged drain";
+  else if(hasT("clean out","cleanout","cleaning")) topic="a drain cleaning";
+  else if(hasT("estimate","quote","how much","price","cost")) topic="pricing for a service";
+  else if(hasT("drain")) topic="a drain issue";
+  else if(hasT("appointment","schedule","reschedule","confirm","following up","follow up")) topic="a service appointment";
+  else topic="";
+  // Fallback for non-plumbing accounts: extract the actual request from the caller's own words.
+  if(!topic){ const ex=extractRequestedService(callerLc); if(ex) topic=ex; }
+  return topic;
+}
+/* Maps detectRequestedService's prose-style topic (built to read naturally in a sentence, e.g.
+   "requested help with ${topic}") to a short, clean service-name label for the dedicated Service
+   column / export — e.g. "a water heater problem" -> "Water Heater", "a leak" -> "Leak Repair". */
+const SERVICE_LABEL_MAP={
+  "an AC repair (not cooling)":"AC Repair",
+  "a heating repair (no heat)":"Heating Repair",
+  "AC maintenance / tune-up":"AC Maintenance",
+  "heating maintenance / tune-up":"Heating Maintenance",
+  "AC installation or replacement":"AC Installation",
+  "heating installation or replacement":"Heating Installation",
+  "AC unit leaking":"AC Leak Repair",
+  "heating unit leaking":"Heating Leak Repair",
+  "AC service pricing":"AC Pricing",
+  "heating service pricing":"Heating Pricing",
+  "an air conditioning issue":"AC Repair",
+  "a heating issue":"Heating Repair",
+  "a thermostat issue":"Thermostat Repair",
+  "duct / vent work":"Duct/Vent Work",
+  "a copy of an inspection video":"Inspection Video",
+  "a water heater problem":"Water Heater",
+  "a garbage disposal issue":"Garbage Disposal",
+  "a sewer or main-line issue":"Sewer Line",
+  "a toilet problem":"Toilet Repair",
+  "a clogged kitchen sink":"Kitchen Sink Unclog",
+  "a clogged sink":"Sink Unclog",
+  "a leak":"Leak Repair",
+  "drain jetting":"Drain Jetting",
+  "a clogged drain":"Drain Unclog",
+  "a drain cleaning":"Drain Cleaning",
+  "pricing for a service":"Pricing Inquiry",
+  "a drain issue":"Drain Repair",
+  "a service appointment":"Service Appointment"
+};
+/* Clean a detected topic into a short noun-phrase label. Known cascade topics (the plumbing/HVAC
+   taxonomy above) use the exact mapping; anything else — the free-text fallback detectRequestedService
+   uses for non-plumbing accounts — gets a generic cleanup: strip a leading article and trailing
+   "problem"/"issue" filler, then Title Case. */
+function cleanServiceLabel(topic){
+  if(!topic) return "";
+  if(SERVICE_LABEL_MAP[topic]) return SERVICE_LABEL_MAP[topic];
+  const s=topic.replace(/^(a|an|the)\s+/i,"").replace(/\s+(problem|issue)$/i,"").trim();
+  return s.split(/\s+/).map(w=>w.charAt(0).toUpperCase()+w.slice(1)).join(" ");
+}
+/* Display form of the requested service for the dedicated column (clean noun-phrase label, or a dash when none). */
+function requestedServiceLabel(call){
+  const s=detectRequestedService(call);
+  if(!s) return "—";
+  return cleanServiceLabel(s);
+}
+
+/* Pull the caller's own description of their problem (a clean, complete sentence) to add specific detail. */
+function callerDetail(call){
+  const cl=(call.transcription||"").split(/\n+/).filter(l=>/^caller\s*:/i.test(l)).map(l=>l.replace(/^caller\s*:/i,"").trim());
+  const strip=l=>l.replace(/^((okay|ok|yeah|yes|no|so|well|um|uh|hi|hey|hello|good (morning|afternoon|evening))[,.\s]+)+/i,"").trim();
+  // Home-services problem vocabulary — covers HVAC, plumbing, and general trades (was plumbing-only,
+  // which meant HVAC callers' own descriptions were never picked up).
+  const problem=/(a\/?c\b|air ?condition|hvac|furnace|heat(er|ing)?\b|cool(ing|s)?\b|thermostat|compressor|condenser|refrigerant|freon|duct|vent|blower|fan|coil|unit|system|breaker|blowing (warm|hot|cold)|not cold|won'?t (cool|heat|turn on|start)|back(ed)? ?up|clog|drain|sink|toilet|sewer|leak|water|pipe|flood|jet|snake|clean|smell|slow|overflow|disposal|faucet|main ?line|shower|tub|basement|stack|septic|camera|install|replace|repair|broke|not working|stopped working|quote|estimate|maintenance|tune ?up|inspect)/i;
+  let pick=cl.map(strip).find(l=>problem.test(l) && l.replace(/[^a-z]/gi,"").length>25)
+         || cl.map(strip).sort((a,b)=>b.length-a.length)[0];
+  if(!pick) return "";
+  pick=pick.split(/(?<=[.!?])\s+/).slice(0,2).join(" ").replace(/\s+/g," ").replace(/[“”]/g,'"').trim().replace(/[.,;:!?]+$/,"");
+  if(pick.replace(/[^a-z]/gi,"").length<20) return "";
+  if(pick.length>200){ pick=pick.slice(0,200); pick=pick.slice(0,pick.lastIndexOf(" "))+"…"; }
+  return pick;
+}
+
+function buildHeuristicSummary(call,res){
+  const status=(call.status||"").toLowerCase();
+  const t=call.transcription||"";
+  const lc=t.toLowerCase();
+  const callerLc=t.split(/\n+/).filter(l=>/^caller\s*:/i.test(l)).join(" ").toLowerCase();
+  const note=stripDispatcherTag(call.note||"");
+  const src=t+" "+note;                       // search transcript + dispatcher note for facts
+  const has=(...ws)=>ws.some(w=>lc.includes(w));
+  const ft=(call.firstTime||"").toLowerCase();
+  const isFirst=ft.includes("true")||ft==="yes"||ft==="1";
+  const isRepeat=ft.includes("false")||ft==="no"||ft==="0";
+  const who=isFirst?"A first-time caller":(isRepeat?"A returning caller":"The caller");
+
+  // What service the caller requested (shared with the dedicated "Requested Service" column).
+  const rs=detectRequestedService(call);
+  let topic=rs||"a service request";
+  const topicSpecific=!!rs;
+
+  // No transcription at all, and the note itself is just noting that fact (not real content describing
+  // the call) — standardize to one clean message instead of running a trivial "recording not available"
+  // note through summaryFromNote and getting back something like "' recording not available." verbatim.
+  if(!t.trim()){
+    if(status.includes("abandon")) return "Abandoned call — the caller hung up before connecting with anyone, so there is no recording or transcription.";
+    if(status.includes("miss")||status.includes("no answer")) return "Missed call — it was not answered by the business, so there is no recording or transcription.";
+    // Strip a stray leading quote/punctuation and any trailing dispatcher-initials line ("\n\n-SC") before
+    // testing — real-world notes for this case look like "' recording not available\n\n\n\n-SC".
+    const noteCore=note.trim().replace(/^[^a-z]+/i,"").replace(/\n[\s\S]*$/,"").trim();
+    if(!note.trim() || /^recording (?:is )?not available\.?$/i.test(noteCore)) return "No recording available.";
+  }
+
+  // Prefer the dispatcher note — a human-written recap of the whole conversation — when it has real content,
+  // but lead with the requested service so it is always stated explicitly.
+  if(!status.includes("abandon") && !status.includes("miss")){
+    const ns=summaryFromNote(note);
+    if(ns) return (topicSpecific ? ("Requested service: "+topic+". ") : "") + ns;
+  }
+
+  // No transcription (missed / abandoned / empty), note had SOME other content that didn't yield a
+  // usable summaryFromNote result.
+  if(!t.trim()){
+    return `${who} reached the business, but no transcription is available for this call.`;
+  }
+
+  // (topic — the requested service — was already detected above and is reused here)
+
+  // Location (city) — accept ANY US state (abbreviation or name) or ANY 5-digit ZIP. The old rule only
+  // matched Massachusetts, so clients in other states silently lost their location from every summary.
+  const ST="AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY|DC";
+  const cityM=src.match(new RegExp("\\b([A-Z][a-z]+(?:\\s[A-Z][a-z]+)?),?\\s+(?:"+ST+")\\b"))
+           || src.match(/\b([A-Z][a-z]+(?:\s[A-Z][a-z]+)?),?\s+(?:Georgia|Massachusetts|Florida|Texas|California|Alabama|Tennessee|Carolina|Virginia)\b/)
+           || src.match(/\b([A-Z][a-z]+(?:\s[A-Z][a-z]+)?)[,.]?\s+\d{5}\b/);
+  let city=cityM?cityM[1]:null;
+  // reject interjections / titles wrongly caught as a city
+  if(city && (city.length<3 || /^(oh|ok|okay|yeah|yes|no|nope|well|so|um|uh|hi|hey|mm|hmm|sir|maam|mister|misses|thanks|thank|and|the|it|is|my|your|our|this|that|got|all|right|great|perfect|address|name|phone|email)$/i.test(city))) city=null;
+
+  // Street address, when the caller gave one (adds real specificity to the recap).
+  const addrM=src.match(/\b(\d{2,6}\s+[A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+){0,3}\s+(?:St|Street|Rd|Road|Dr|Drive|Ave|Avenue|Ln|Lane|Ct|Court|Way|Trace|Trail|Blvd|Boulevard|Cir|Circle|Pl|Place|Pkwy|Parkway|Ter|Terrace|Hwy|Highway))\b/i);
+  const address=addrM?addrM[1].replace(/\s+/g," ").trim():null;
+
+  // The equipment / system involved. Prefer the unit the caller says is BROKEN — a naive match picked up
+  // "the downstairs unit" from "the downstairs unit is fine, the upstairs unit is not working".
+  const LOC="upstairs|downstairs|attic|basement|garage|outside|outdoor|indoor|main|front|back|second[- ]floor";
+  const brokeM=callerLc.match(new RegExp("\\b("+LOC+")\\s+(?:unit|system)\\b[^.]{0,30}?(?:not working|isn'?t working|won'?t|not cooling|is out|went out|broke)","i"))
+            || callerLc.match(new RegExp("(?:not working|isn'?t working|not cooling|is out|went out|broke)[^.]{0,20}\\b("+LOC+")\\s+(?:unit|system)\\b","i"));
+  const cntM=callerLc.match(/\b(two|three|four|2|3|4)\s+(?:ac\s+|hvac\s+)?(?:units|systems)\b/i);
+  let equip = brokeM ? `${brokeM[1].toLowerCase()} unit` : null;
+  if(cntM) equip = equip ? `${cntM[1]} systems, the ${equip} not working` : `${cntM[1]} systems`;
+
+  // How long the problem has been going on. Deliberately EXCLUDES months/years — those almost always refer
+  // to how long they've owned the home or held a warranty, not how long the unit has been down (a greedy
+  // rule produced "it had been going on for three years and never called").
+  const durM=callerLc.match(/\bsince (yesterday|last night|this morning|last week|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/i)
+          || callerLc.match(/\bfor (?:about )?((?:a|one|two|three|four|five|a couple of|a few|several|\d+)\s+(?:day|days|week|weeks|hour|hours|night|nights))\b/i)
+          || callerLc.match(/\b(yesterday|last night|this morning)\b/i);
+  const howLong=durM?durM[1].replace(/\s+/g," ").trim():null;
+
+  // Prior work / other companies / warranty — context that explains the call.
+  const prior = /(another company|somebody else|someone else|other company|already (?:had|got) (?:it|someone)|home warranty|under warranty|labor warranty|previous(?:ly)? (?:repair|fixed|came out)|last (?:tech|technician|time) (?:came|was))/i.test(src)
+    ? (src.match(/home warranty|labor warranty|under warranty/i) ? "a home/labor warranty" : "prior work by another company")
+    : null;
+
+  // Price, if quoted (check note too — CallRail notes often record the quote)
+  const priceM=src.match(/\$\s?(\d{2,4})\b/)||src.match(/\b(\d{3,4})\s?dollars\b/i);
+  const price=priceM?("$"+priceM[1].replace(/\D/g,"")):null;
+
+  // Time window / when (search transcript + note)
+  const lcAll=lc+" "+note.toLowerCase();
+  let when=null;
+  const win=src.match(/between[^.\d]{0,15}(\d{1,2}(?::\d{2})?)\s*(?:and|to|-)\s*(\d{1,2}(?::\d{2})?)/i);
+  if(win) when=`between ${win[1]} and ${win[2]}`;
+  else if(lcAll.includes("first thing")) when="first thing in the morning";
+  else if(lcAll.includes("this afternoon")) when="this afternoon";
+  else if(lcAll.includes("this morning")) when="this morning";
+  else if(lcAll.includes("tomorrow")) when="tomorrow";
+  else if(lcAll.includes("today")) when="today";
+  const callback=has("call you back","give you a call","someone will call","call the customer back","get back to you","reach back out","call you right back");
+  const followUp=has("following up","follow up","checking on","just confirming","confirming the","still coming","status of my");
+  // Is the quoted fee credited toward the repair? (a detail callers always ask about)
+  const feeCredited=/(goes? toward|applied toward|credited toward|included in the (?:bill|repair|price)|waived if|comes off)/i.test(src);
+  // Did the agent promise a heads-up call before arrival?
+  const callAhead=/(call (?:you )?(?:about )?(?:an?|one) hour before|call (?:you )?(?:30|thirty) minutes before|give you a call before (?:we|they) (?:arrive|come|head))/i.test(src);
+  // The arrival window the agent quoted.
+  const winM=src.match(/\b(?:a\s+)?(?:window of\s+)?(\w+[- ]hour (?:arrival )?window|\d\s*(?:to|-)\s*\d\s*hour window)/i);
+  const arrivalWindow=winM?winM[1].replace(/\s+/g," ").trim():null;
+  // Caller's own constraints / objections.
+  const shopping=/(call(ing)? around|other companies|another company|compare|see who can (?:come|get) out (?:first|sooner)|shop(ping)? around|someone sooner|find (?:someone|somebody) sooner)/i.test(callerLc);
+  const urgent=/(as soon as possible|asap|emergency|today|right away|urgent|no air|it'?s hot|heat wave|can'?t wait)/i.test(callerLc);
+  // The next availability the agent offered (surfaced in the summary when mentioned).
+  const naM=src.match(/(?:earliest (?:we have |available )?(?:is|would be)|earliest (?:i|we) (?:can|could)|next available(?: (?:is|would be|time is|appointment is|opening is))?|soonest (?:we can|is|available|i can)|first available(?: is)?|we can get (?:someone|somebody) out|i can get (?:someone|somebody) out|we could do|we can do)\s+([a-z0-9][^.,;!?\n]{2,50})/i);
+  const nextAvail = naM ? naM[1].replace(/\s+/g," ").trim() : (when||null);
+
+  // Purpose-built, easy-to-read summaries for non-service (invalid) calls
+  switch(res.invalid_reason){
+    case "Spam":
+      return `${who} placed a spam call — an unsolicited pitch (for example, a "verify your business on Google" scam) rather than a real service request. It was flagged as spam and is not a lead.`;
+    case "Job Application":
+      return `${who} was a job seeker asking about employment rather than a customer needing service. It was logged as a job application.`;
+    case "Marketing":
+      return `${who} was a salesperson or vendor pitching a product or service to the business, not a customer. It was logged as a marketing call.`;
+    case "Wrong Number":
+      return `${who} had dialed the wrong number and was not trying to reach this business.`;
+    case "Incorrect Business":
+      return `${who} was looking for ${topic}, but it is not a service this business offers, so the agent referred them to a different company.`;
+    case "Cancelled":
+      return `${who} called to cancel their existing appointment or service${topicSpecific?` (${topic})`:""}. The booking was cancelled.`;
+    case "Disconnected":
+      if(!res.is_service_call) return `${who} reached the business and the agent answered, but there was no response from the caller before the line disconnected — no service was requested.`;
+      return `${who} called about ${topic}, but the call dropped before it reached a clear conclusion.`;
+    case "Abandoned":
+      return "Abandoned call — the caller hung up before connecting with anyone.";
+    case "Missed":
+      return "Missed call — it was not answered by the business.";
+  }
+
+  // Valid service call — compose a fuller, detailed recap from every fact we could extract.
+  const sents=[];
+  // 1) opening: who + requested service + location
+  const place = address ? `${address}${city?`, ${city}`:""}` : city;
+  sents.push(`${who} contacted the business${place?` from ${place}`:""} and requested help with ${topic}.`);
+  // 2) the caller's own description of the problem, when a clean one is available
+  const detail=callerDetail(call);
+  if(detail) sents.push(`In their own words, the caller reported: "${detail}".`);
+  // 3) the equipment involved and how long the issue had been going on
+  if(equip||howLong){
+    const bits=[];
+    if(equip) bits.push(`the problem involved the ${equip}`);
+    if(howLong) bits.push(`it had been going on ${/^(yesterday|last night|this morning)/i.test(howLong)?`since ${howLong}`:`for ${howLong}`}`);
+    sents.push(capFirst(bits.join(", and "))+".");
+  }
+  // 4) prior work / warranty context
+  if(prior) sents.push(`The caller mentioned ${prior} in connection with the issue.`);
+  // 5) any price/quote the agent gave, and whether it is credited toward the repair
+  if(price) sents.push(`The agent quoted ${price} for the visit${feeCredited?", noting it would be applied toward the cost of the repair if the work was done":""}.`);
+  // 6) the caller's own constraints
+  if(urgent&&shopping) sents.push(`The caller needed help urgently and said they were also calling other companies to see who could get out sooner.`);
+  else if(urgent) sents.push(`The caller stressed that they needed someone out as soon as possible.`);
+  else if(shopping) sents.push(`The caller said they were also checking with other companies to find the soonest available visit.`);
+  // 7) how the call ended
+  if(res.booking_status==="Booked"){
+    if(offeredWaitlist(src.toLowerCase())){
+      sents.push(`With no immediate opening, the agent placed the caller on the cancellation / priority list to be contacted if an earlier slot opens up${when?`, tentatively ${when}`:""}, and the caller agreed.`);
+    } else if(callback && !when){
+      sents.push(`Rather than locking in a fixed time, the agent told the caller that someone would call them back to finalize the visit.`);
+    } else {
+      sents.push(`The agent scheduled a service visit${when?` for ${when}`:""}, and the call ended with the appointment booked.`);
+    }
+  } else { // Not Booked
+    if(res.invalid_reason==="Not Available"){
+      sents.push(`The company could not serve the caller within the requested timeframe${nextAvail?`; the agent's next availability was ${nextAvail}`:""}, so no appointment was booked.`);
+    }
+    else if(followUp) sents.push(`The caller was following up on an existing appointment, so no new booking was made during this call.`);
+    else if(nextAvail) sents.push(`No appointment was booked on this call; the agent's next available time was ${nextAvail}.`);
+    else sents.push(`The call ended without an appointment being booked.`);
+  }
+  // 8) logistics the agent promised for a booked visit
+  if(res.booking_status==="Booked" && (arrivalWindow||callAhead)){
+    const bits=[];
+    if(arrivalWindow) bits.push(`the agent gave a ${arrivalWindow}`);
+    if(callAhead) bits.push(`the technician would call ahead before arriving`);
+    sents.push(capFirst(bits.join(", and "))+".");
+  }
+  return sents.join(" ");
+}
+
+/* Rate agent tone from the agent's spoken lines (rude / curt / friendly / professional). */
+function heuristicTone(call){
+  const status=(call.status||"").toLowerCase();
+  const full=call.transcription||"";
+  if(!full.trim() || status.includes("missed") || status.includes("abandon") || status.includes("voicemail") || status.includes("no answer"))
+    return {tone:"N/A",reason:""};
+  const agentLines=full.split(/\n+/).filter(l=>/^agent\s*:/i.test(l)).join(" ").toLowerCase();
+  const src=agentLines||full.toLowerCase();
+  const rude=/(shut up|not my problem|don'?t care|stop calling us|calm down|are you (stupid|serious|deaf)|that'?s not my job|figure it out yourself|not my concern|quit calling|don'?t call (here|back) again)/;
+  const curt=/(i already told you|like i said|as i said|i don'?t know\b|can'?t help you|nothing i can do|we don'?t do that|that'?s not something we|no,? we don'?t|you'?ll have to call)/;
+  const friendly=/(thank you|thanks so much|please|happy to|my pleasure|absolutely|no problem|of course|have a (great|good|wonderful)|you'?re welcome|glad to help|i'?d be glad|take care)/;
+  if(rude.test(src))     return {tone:"Rude",reason:"Dismissive / impatient language detected"};
+  if(friendly.test(src)) return {tone:"Friendly",reason:"Polite, courteous language"};
+  if(curt.test(src))     return {tone:"Curt",reason:"Short / brusque responses"};
+  return {tone:"Professional",reason:"Neutral, professional handling"};
+}
+
+/* Strip an automated IVR/phone-tree menu readout (e.g. "...check the status of your appointment,
+   press 2...") from the text used for keyword-based signal detection. A line reeling off 3+ "press N"
+   prompts is a boilerplate phone menu, not organic conversation — matching ITS menu options against
+   keywords like "appointment" produces false positives unrelated to what was actually said on the call. */
+function stripIvrMenu(text){
+  return (text||"").split(/\n+/).map(line=>{
+    const pressCount=(line.match(/\bpress\s+(?:\d|one|two|three|four|five|six|seven|eight|nine|zero)\b/gi)||[]).length;
+    return pressCount>=3 ? "" : line;
+  }).join("\n");
+}
+
+function classifyHeuristic(call){
+  const status=(call.status||"").toLowerCase();
+  const t=(call.transcription||"").toLowerCase();
+  const note=stripDispatcherTag(call.note||"").toLowerCase();
+  const blob=stripIvrMenu(call.transcription).toLowerCase()+" "+note;
+  const agentText=(call.transcription||"").split(/\n+/).filter(l=>/^agent\s*:/i.test(l)).join(" ").toLowerCase();
+  const firstTime=/(^|[^a-z])(true|yes|1)([^a-z]|$)/.test((call.firstTime||"").toLowerCase());
+  const isRepeat=/(^|[^a-z])(false|no|0)([^a-z]|$)/.test((call.firstTime||"").toLowerCase());
+  const dur=parseInt(call.duration||"0")||0;
+
+  const has=(...ws)=>ws.some(w=>blob.includes(w));
+  // Service intent must come from what the CALLER said (plus the dispatcher note) — the agent's
+  // greeting ("Drains by James") would otherwise inject service keywords into every transcript.
+  const callerText=(call.transcription||"").split(/\n+/).filter(l=>/^caller\s*:/i.test(l)).join(" ").toLowerCase();
+  const callerBlob=callerText+" "+note;
+  const hasCaller=(...ws)=>ws.some(w=>callerBlob.includes(w));
+
+  // status-driven
+  if(status.includes("abandon")) return normalize({summary:"Abandoned call — caller hung up before connecting.",is_service_call:false,booking_status:"N/A",invalid_reason:"Abandoned",confidence:"High",engine:"heuristic"},call);
+  if(status.includes("missed")||status.includes("no answer")) return normalize({summary:"Missed call — not answered by the business.",is_service_call:false,booking_status:"N/A",invalid_reason:"Missed",confidence:"High",engine:"heuristic"},call);
+
+  const summary = t ? heuristicSummary(call.transcription) : (note?firstSentence(call.note):"No transcription available.");
+
+  // The call connected ("Answered Call") but there's no transcription AND no useful dispatcher note either
+  // (empty, or just noting the recording is unavailable) — regardless of duration, there's no actual
+  // conversation content to judge, so it's Disconnected. If the note DOES have real content (e.g. the
+  // automated transcription failed but a human dispatcher was on the call and wrote it up), judge from
+  // that instead — don't blindly discard a rich note just because the transcript field is empty.
+  const noteCoreForNoTranscript=note.trim().replace(/^[^a-z]+/i,"").replace(/\n[\s\S]*$/,"").trim();
+  if(!t.trim() && status.includes("answered") && (!note.trim() || /^recording (?:is )?not available\.?$/i.test(noteCoreForNoTranscript)))
+    return normalize({summary,is_service_call:false,booking_status:"Not Booked",invalid_reason:"Disconnected",confidence:"Medium",engine:"heuristic"},call);
+
+  // Signals — evaluate service intent FIRST so it can override weak spam/job/marketing keyword hits.
+  const booked = has("appointment","scheduled","schedule you","set up an","see you","we'll be there","send someone",
+    "have someone come","technician will","call you back","give you a call","someone will call","i'll have someone",
+    "we can come","book you","get you on the schedule","set you up","between "," to noon","get somebody there");
+  const serviceSignals = hasCaller("drain","clog","backup","back up","sink","toilet","sewer","plumb","water heater","leak",
+    "jet","snake","cleanout","clean out","estimate","quote","appointment","schedule","technician","garbage disposal",
+    "faucet","pipe","flood","camera the","service call","tank size","power vent","tankless","gallon tank","gallon water");
+  // caller is only following up / confirming an EXISTING booked appointment -> Valid but Not Booked
+  const followUp = hasCaller("following up","follow up","checking on my appointment","checking on the appointment",
+    "confirm my appointment","confirming my appointment","confirming the appointment","status of my appointment",
+    "is someone still coming","are you still coming","still coming today","still coming out","calling about my appointment",
+    "about my appointment","what time is my","when will the technician","following up on my","just checking on my",
+    "supposed to come","confirm someone is coming","checking to see if someone");
+  // NOTE: repeat callers are judged on the call's own merits — being a repeat caller must never
+  // prevent a call from being recognised as a valid service call.
+  // The plumbing-specific keyword list above misses trade-specific terms for other business types this
+  // dashboard is used for (roofing, HVAC, etc.), so also recognize a caller referencing work THIS
+  // business actually did for them ("you guys came out and fixed my roof") — trade-agnostic evidence of
+  // a genuine, existing customer relationship, unlike a caller merely talking at length.
+  const priorWorkReference = hasCaller("you guys came","you guys did","you guys fixed","you guys installed",
+    "you guys repaired","you guys replaced","you came out","you came by","your crew","your technician",
+    "your team came","came by and fixed","came and fixed","came out and did","came out and fixed",
+    "the work you did","you all came out","you all fixed","when you guys","when you came","fixed my",
+    "repaired my","replaced my","installed my","did on my","worked on my","serviced my");
+  // Deliberately NOT "long call = valid lead": a lengthy, substantive conversation about something
+  // entirely unrelated to the business (e.g. a caller working through a personal dispute with an
+  // employee) has no service keywords at all and must not be assumed valid just because it ran long.
+  const isService = serviceSignals || followUp || priorWorkReference;
+
+  // Whether the call was routed to a voicemail box is used further down, AFTER spam/wrong-number/job-
+  // application/marketing are checked — a vendor pitch or spam message left on an internal extension's
+  // voicemail must still be classified as that, not swept into Valid+Booked just because it reached voicemail.
+  // Deliberately excludes the "record your name and reason for calling" screening prompt: that's Bio
+  // Remedies' call-screening greeting, played at the START of EVERY call to that business regardless of
+  // outcome — a call that continues into a full live conversation still opens with it, so matching on it
+  // alone falsely flagged live, answered calls as voicemail. Only the actual unavailable/leave-a-message
+  // outcome phrases that play AFTER screening fails count as real voicemail routing.
+  const routedToInternalVoicemail=/leave (?:an? )?(?:additional )?message|reply after the tone|this person is not available/i.test(agentText);
+  const personSrc=(call.transcription||"")+" "+(call.note||"");
+  // Caller properly ends the call by stating SHE will call back herself — computed early so it can also
+  // gate the voicemail short-circuit below, not just the later booking checks (a caller who says "he
+  // would just callback tomorrow and set it up" must not be read as a secured lead just because the call
+  // also happened to route through voicemail and mention real service content).
+  const callerWillCallBack=/\b(?:i|she|he|they)\s+(?:will|'ll|would|is going to|are going to)\b[^.!?\n]{0,20}\bcall(?:ing)?\s*back\b/i.test(personSrc)
+    || /\b(?:i|she|he|they)\s+(?:will|'ll|would|is going to|are going to)\b[^.!?\n]{0,20}\bcall (?:you|us)\b[^.!?\n]{0,20}\b(?:tomorrow|later|soon|shortly|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday|next week|this (?:afternoon|evening|morning))\b/i.test(personSrc);
+  // ---- Booking detection ----
+  // A booking counts only when it is CONFIRMED, or when the agent OFFERED to book AND the caller AGREED.
+  // An agent offer with no caller response / no agreement is NOT a booking (it stays "Not Booked").
+  // NOTE: the determiner after the booking verb is REQUIRED ("scheduled AN appointment", "booked THE
+  // appointment"). Making it optional matched the bare noun phrase "a scheduled appointment", so a caller
+  // merely REFERRING to their existing appointment ("I have a scheduled appointment for tomorrow. Can you
+  // cancel?") was read as a newly-confirmed booking — which then suppressed the "Cancelled" result.
+  const bookingConfirmed = /appointment (was |is |has been )?(set|scheduled|booked|confirmed|arranged)|(set|scheduled|booked|arranged) (up )?(an|the|your|you an|you the) appointment|arrangements (are|were) made|booked you (in|for|today)|you'?re booked (in|for|today)|got you (down|scheduled|booked|on the schedule)|(you|we)'?re all set|(get|got) (this|it|you|that|everything) (all )?(set up|scheduled|booked|arranged)|put (you|it|him|her) (down|under|on the schedule)|i (will|'?ll|'?m going to|'?m gonna) (have|get|send|put|schedule)[^.]{0,25}(there|out|over|down|come|between|today|tomorrow|this|scheduled|set)|(someone|somebody) (will|is going to|'?s going to) (be there|come out|arrive|head)|(technician|tech) (will|'?s going to) (arrive|be there|come|head)|(is|are|they'?re) coming (out )?(today|tomorrow|between|this)|(is|are|they'?re)(?: supposed to be)? going over (today|tomorrow|this)|(we'?ll |\bi'?ll )see you (then|tomorrow|on |this |at )|see you (then|tomorrow|on the)|look forward to seeing you|caller (agreed|acknowledged|confirmed)|can be scheduled (for )?(today|tomorrow|this (week|afternoon|morning|evening)|on \w+day)|(is|are|they'?re|he'?s|she'?s) on (?:the|our) schedule( right now)?|let'?s go ahead and (?:also )?(?:tentatively )?schedule|go ahead and (?:tentatively )?schedule (?:that|it|you|this)|tentatively schedule (?:that|it|you|this)/i.test(blob)
+    || /(?:^|\|)\s*booked\b/i.test(call.note||"");   // dispatcher-note "Booked today" tag (browser-safe, no lookbehind)
+  // Agent OFFERS to book (contingent on the caller agreeing).
+  // NOTE: bare "i can get"/"i could do"/"we can send" etc. were removed — those match completely
+  // ordinary statements with no scheduling intent at all ("I could get you a price quote on that",
+  // "we can send you an estimate"), which then combined with an unrelated "okay" anywhere else in a long
+  // call (via callerAgreed below) to produce a false "Booked". Only actual scheduling-oriented verbs count.
+  // "make it" only counts when it means arriving on-site ("make it out/there/by 2") — "we can make it
+  // EASIER for you" is an idiom about simplifying a process, not a scheduling offer.
+  const bookingOffered = /i can (come|book|schedule|make it (?:out|there|over|by|today|tomorrow|this)|fit you|come out|get (?:out there|there)|send someone (?:out)?|send somebody (?:out)?|get someone (?:out|scheduled)|get somebody (?:out|scheduled)|get you (?:scheduled|set up|on the schedule))|i could (come|book|schedule|fit|get (?:out there|there)|send someone (?:out)?|send somebody (?:out)?|get someone (?:out|scheduled)|get somebody (?:out|scheduled))|we can (come|schedule|book|be there|make it (?:out|there|over|by|today|tomorrow|this)|get (?:out there|there)|send someone (?:out)?|send somebody (?:out)?|get someone (?:out|scheduled)|get somebody (?:out|scheduled)|fit you|come out)|would you like (me to|to)|i can still (book|schedule|get (?:out there|there)|send someone (?:out)?|get someone (?:out|scheduled)|get somebody (?:out|scheduled))|we can still (book|schedule|come|get (?:out there|there)|send someone (?:out)?|get someone (?:out|scheduled))|can (set|book|schedule) (you|the appointment|an appointment)/i.test(blob);
+  // Checked against the AGENT's own words only (not the full caller+agent blob) — a genuine callback
+  // promise must come from the business side. Without this, a CALLER saying "I will call you back"
+  // (meaning she'll call the business back) was read as if the agent had promised to call HER back.
+  const callbackPromised = /(call|contact|reach) (you|the caller|him|her|them) back|someone will call (you )?back|give you a call( back)?|\bi'?ll call you( back)?|reach back out|call you right back|call (and|to) confirm|call you on (the|your) way|have (?:them|him|her|someone|somebody|my \w+|our \w+|the \w+) call you|(?:receive|get) a call from (?:them|us|the team|dispatch|our team|my \w+|our \w+)|have (?:them|him|her|someone|somebody|my \w+|our \w+|the \w+) reach out(?: to you)?|\bi'?ll let you know|(?:then|and) (?:i can|i'?ll) let you know/i.test(agentText);
+  const committed = hasCaller("book me","book it","let's do it","let's do that","i'll take it","yes let's","put me down","schedule me","set it up","go ahead and schedule","go ahead and book");
+  // Caller agreed to the agent's offer (used only when the agent actually offered to book).
+  const callerAgreed = committed || hasCaller("great","perfect","sounds good","sounds great","okay","that works","that'll work",
+    "that will work","yes","yeah","see you","thank you so much","awesome","wonderful","that's fine","that is fine","appreciate it",
+    "that'd be great","that would be great","go ahead","yep","very good","that's great","that's perfect","perfect thank you");
+  const agreed = bookingConfirmed || callbackPromised || (bookingOffered && callerAgreed);
+  // Caller explicitly DECLINED the offered schedule / is going elsewhere (unbooked scheduling failure).
+  // NOTE: \b before "i'?ll" is required — without it, "w-ILL call around" (e.g. "the caller will call
+  // around first" while comparing quotes) matched via the bare "ill" inside "will", wrongly triggering a
+  // schedule decline for what is really just a pricing/quote comparison with no scheduling conflict at all.
+  // Caller is comparison-shopping / going with a different provider (price, quote, or general preference) —
+  // a legitimate, resolved contact that simply didn't convert, not a business-side availability failure.
+  const declinedForAlternative=/\b(?:i'?ll|i would|i'?d) (?:just )?(?:go around,? (?:and )?)?(try|call|go with|check|find|use|contact) (someone|somebody|another|a different|around|some(?: of the)? (?:people|others|companies))|(call|find|go with|going with) someone else|seek alternative|alternative assistance|(go|look) elsewhere|\bi'?ll pass on|decides to (seek|look|find|call)/i.test(blob);
+  // Caller declined specifically because the business's timing/availability didn't fit their need —
+  // a genuine Not Available outcome, distinct from shopping around for a better price elsewhere.
+  const declinedForAvailability=/(window|time frame|timeframe|that time|that window) (is )?too (broad|wide|long)|too (broad|wide) (a |of a )?(window|time)|too far out|can'?t wait that long|need (someone|somebody) sooner/i.test(blob);
+  const declinedSchedule=declinedForAlternative||declinedForAvailability;
+  // Agent explicitly could NOT serve the caller within the day.
+  const noSameDay=/(can'?t|cannot|won'?t be able to|not able to|unable to)[^.]{0,22}(today|same day|this afternoon)|no (availability|openings?|slots?)[^.]{0,15}today|(booked|full|fully booked|all booked)[^.]{0,15}today|nothing (available|open)[^.]{0,15}today/i.test(blob);
+
+  // Strong invalid signals that should win even over service keywords (require specific phrasing to avoid false positives).
+  // NOTE: "warranty department" was removed — it's ordinary internal terminology at plenty of home-services
+  // businesses (roofing/HVAC "warranty department" transfers), not a spam signal on its own.
+  // "press 1" / "press one" alone also false-positived on legitimate voicemail greetings ("press 1 for more
+  // options"), so it only counts as spam when paired with the actual Google-listing-scam script wording.
+  const spam = has("verify your business","get verified","business verified","get your business verified","google listing",
+    "google business profile listing","claim your listing","rank higher","search engine optimization","seo services",
+    "vehicle's warranty","final notice","this is not a sales call","robocall")
+    || (has("press 1","press one") && has("trouble finding you","numerous searches","google voice","under audit and flagged"));
+  const jobApp = has("job application","are you hiring","is anyone hiring","looking for a job","looking for work",
+    "looking for employment","employment opportunity","apply for a position","apply for a job","submit my resume",
+    "send my resume","seeking employment","any openings","are you guys hiring","job opening");
+  // Includes common vendor/marketing cold-call openers, not just the fully-developed pitch phrases below —
+  // an agent who recognizes a vendor/marketing call often hangs up within a few seconds, so the transcript
+  // is usually cut short before it ever reaches a phrase like "lower your rate"; without these earlier
+  // opener phrases such a call falls through to the generic "Disconnected" catch-all instead of "Marketing".
+  const marketing = has("calling on behalf of","offer you a","we can help you get more","merchant services",
+    "credit card processing","lower your rate","business loan","funding for your business","list your business",
+    "advertising opportunity","partner with","wholesale pricing","become a vendor","supplier of",
+    "digital marketing","web design","website design","seo services","search engine optimization",
+    "social media marketing","increase your leads","increase your visibility","get more customers",
+    "get more leads","grow your business","marketing services","advertising services",
+    "businesses like yours","local businesses in your area","boost your rankings","boost your visibility",
+    "improve your ranking","an offer for your business","we noticed your business","opportunity for your business",
+    "reaching out to businesses","specialize in helping businesses","calling businesses in the area",
+    "quick call about your business","your business's online presence","your online presence",
+    "calling from a marketing","calling with a marketing","this is a marketing call","vendor calling",
+    "i'm a vendor","we're a vendor","cold calling","cold call",
+    // Generic B2B vendor cold-call openers, industry-agnostic (insurance, financial services, office
+    // supplies, etc. — not just digital-marketing/SEO vendors): introducing themselves unprompted, asking
+    // for whoever is "responsible for" some business function (not a specific need of their own), and
+    // offering something unsolicited ("a complimentary review") rather than requesting a service.
+    "introduce myself","who's responsible for","complimentary review","complimentary consultation",
+    "complimentary quote","ahead of the renewal","on the radar this year",
+    // Media/advertising sales reps (TV, radio, print, streaming) pitching ad space — a distinct vendor
+    // category from digital-marketing/SEO/insurance, with its own characteristic phrasing.
+    "advertising decisions","advertising platforms","advertising opportunities","get new customers",
+    "digital advertising","streaming tv","tv advertising","television advertising","broadcasting platform",
+    "make advertising decisions","advertise with us","radio advertising","print advertising");
+  // "i have the wrong"/"must have the wrong" require a completion naming what's wrong (number/company/
+  // business/place) — bare "I have the wrong ___" also matches a caller mixing up a CALLBACK phone
+  // number's digits ("maybe I have the wrong one now" while reading off a number to text photos to),
+  // which has nothing to do with having dialed the wrong business.
+  const wrongNum = has("wrong number","sorry, wrong","misdialed","wrong company","not who i",
+    "i have the wrong number","i have the wrong company","i have the wrong business","i have the wrong place",
+    "must have the wrong number","must have the wrong company","must have the wrong business","must have the wrong place");
+  // Marketing-agency QA / test calls (e.g. Real Time Marketing checking the client's tracking numbers,
+  // directories, LSA/GBP, or doing a monthly check-in) — these are NOT customer service requests.
+  const agencyQA = hasCaller("calling from real time","from real time marketing","real time marketing",
+    "monthly check in","monthly check-in","for your directories","checking the directories","checking your directories",
+    "call tracking number","tracking numbers to test","more call tracking","checking the dbp","the dbp for",
+    "the lsa number","checking the lsa","checking on the lsa","line is working properly","make sure the line is working",
+    "just testing the","testing the number","testing the line","just a test call");
+
+  // Caller is CANCELLING their existing appointment/service (from the caller's words / note, NOT the
+  // agent offering a "cancellation list" waitlist).
+  // Caller (or note/agent confirmation) indicates the appointment/service was cancelled.
+  // (detectCancellation ignores the "cancellation list" waitlist phrasing.)
+  // A RESCHEDULE (cancel + rebook / move to another time) is NOT a cancellation — let it fall through to
+  // the normal service/booking logic so it is captured as a valid booked/rebooked call.
+  const reschedule=/reschedul|re-schedul|move (it|the appointment|that|my appointment)\s+(to|up|back|forward)|change (it|the appointment|the time|my appointment)\s+(to|for)|push (it|the appointment|that)\s+(to|back)|(need|want|like|have) to (reschedul|move|rebook|book (it |that )?for)|prefer (tomorrow|today|monday|tuesday|wednesday|thursday|friday|saturday|sunday|next|the)/i.test(blob);
+  // A reschedule overrides "Cancelled" ONLY if a NEW appointment was actually booked (moved, not cancelled).
+  // A cancellation with just intent to rebook later / a callback → still "Cancelled".
+  const rescheduledAndBooked = reschedule && (bookingConfirmed || (bookingOffered && callerAgreed));
+  if(detectCancellation(blob) && !rescheduledAndBooked)
+    return normalize({summary,is_service_call:true,booking_status:"Not Booked",invalid_reason:"Cancelled",confidence:"Medium",engine:"heuristic"},call);
+
+  // The transcription has no "Caller:" turns at all — the agent picked up and spoke (often a voicemail/
+  // hold greeting), but the caller never said anything before the call ended. With no caller side to the
+  // conversation at all, generic "booked"/"callback" keyword hits in the agent's own greeting are NOT
+  // reliable evidence of a real agreement (e.g. a boilerplate "leave your name and we'll call you back"
+  // voicemail message) — deliberately ignore the `booked` signal here and always resolve to Disconnected.
+  if(!callerText.trim() && agentText.trim())
+    return normalize({summary,is_service_call:false,booking_status:"Not Booked",invalid_reason:"Disconnected",confidence:"Medium",engine:"heuristic"},call);
+
+  if(agencyQA)  return normalize({summary,is_service_call:false,booking_status:"N/A",invalid_reason:"Marketing",confidence:"Medium",engine:"heuristic"},call);
+  if(spam)     return normalize({summary,is_service_call:false,booking_status:"N/A",invalid_reason:"Spam",confidence:"Medium",engine:"heuristic"},call);
+  if(wrongNum) return normalize({summary,is_service_call:false,booking_status:"N/A",invalid_reason:"Wrong Number",confidence:"Medium",engine:"heuristic"},call);
+  if(jobApp)   return normalize({summary,is_service_call:false,booking_status:"N/A",invalid_reason:"Job Application",confidence:"Medium",engine:"heuristic"},call);
+  // No longer gated on !isService: a vendor's OWN sales-meeting scheduling talk ("let's set up a time to
+  // meet") can trip the generic "schedule"/"appointment" service-signal keywords, which used to make
+  // isService true and skip this check entirely — a strong, specific marketing-keyword match should win
+  // regardless of that.
+  if(marketing) return normalize({summary,is_service_call:false,booking_status:"N/A",invalid_reason:"Marketing",confidence:"Low",engine:"heuristic"},call);
+
+  // "Voicemail" means the caller actually reached a voicemail box and (potentially) left a message —
+  // unlike Missed/Abandoned there is real caller content to judge. A message that requests service
+  // and/or asks the business to call back is a genuine, secured lead: Valid Call, Booked. Checked here,
+  // AFTER spam/wrong-number/job-application/marketing above already had first crack at it — a vendor
+  // pitch or spam message left on an internal extension's voicemail is still that, not a secured lead.
+  if(status.includes("voicemail") || routedToInternalVoicemail){
+    const requestsCallback = hasCaller("call me back","call me at","give me a call","please call me back",
+      "please call me","call me when","you can reach me","reach me at","call back at","get back to me",
+      "return my call","call my cell","call my number");
+    // callerWillCallBack excluded: a caller who says SHE will call back herself hasn't been secured as
+    // a booked lead just because the message also happens to reach voicemail and mention real service
+    // content — fall through so the normal cascade's Not Booked handling for that phrase applies instead.
+    if(callerText.trim() && (isService || requestsCallback) && !callerWillCallBack)
+      return normalize({summary:heuristicSummary(call.transcription),is_service_call:true,booking_status:"Booked",invalid_reason:"Valid Call",confidence:"Medium",engine:"heuristic"},call);
+    // Otherwise (empty voicemail box, or a message that isn't a service/callback request) — fall through
+    // to the normal classification cascade below so a genuinely empty voicemail still gets handled
+    // correctly by the existing logic.
+  }
+
+  // Incorrect Business — the agent says they don't do/serve the requested work AND refers the caller
+  // elsewhere. "Elsewhere" must mean a DIFFERENT company — an internal transfer to another department of
+  // THIS SAME business (e.g. "let me transfer you to our billing department") is routine handling of an
+  // existing customer's request, not evidence the caller reached the wrong business.
+  const declines=/(we don'?t (do|service|offer|handle|work on|cover|deal with)|we only (do|service|offer|handle)|that'?s not something we (do|offer|handle)|we don'?t provide|not a service (we|that we)|we don'?t (really )?(do|handle) (that|those))/;
+  const refers=/(you'?(ll|d) (want|have|need) to (call|contact|reach)|i'?d (recommend|suggest) (calling|contacting|reaching)|call (a|another|a different|a local)|reach out to|try calling|you should call|give (them|him|her|someone) a call|contact (a|another)|somebody (else|different)|a different company|another company)/;
+  const internalTransfer=/\b(department|dept\.?|extension|ext\.?|billing|scheduling|dispatch)\b/i.test(agentText)
+    && !/(different|another) (company|provider|business)/i.test(agentText);
+  if(declines.test(agentText) && refers.test(agentText) && !internalTransfer)
+    return normalize({summary,is_service_call:false,booking_status:"N/A",invalid_reason:"Incorrect Business",confidence:"Medium",engine:"heuristic"},call);
+  // Detect a caller asking for a specific PERSON (not the business's services) about a matter unrelated
+  // to what the business offers. If the call reaches a natural conclusion (agent takes the message,
+  // closes out with a goodbye), that's a real, handled contact — see the Valid Call return below. If the
+  // SAME kind of call instead cuts off abruptly with no closing exchange, it has no resolution at all and
+  // belongs in the Disconnected fallback further down instead.
+  // Checked against the transcription AND the dispatcher note — the note is a human's summary of the
+  // full context (sometimes including things said on a related prior call) and can name who the caller
+  // was after even when this call's own transcript never has the caller say the name herself (e.g. the
+  // agent refers to "getting it over to Len" without the caller repeating his name in THIS call).
+  const personPhraseMatch=personSrc.match(
+    /\b(?:caller\s+(?:is\s+|needs to\s+)?(?:looking|asking) for|caller needs to speak (?:to|with)|is there (?:a|someone)(?: named| by the name of)?|(?:wants?|wanted|needs?|needed) to (?:speak|talk) (?:to|with)|trying to (?:reach|speak (?:to|with)|talk (?:to|with))|(?:can|may) i (?:speak|talk) (?:to|with))\s+(\w+(?:\s\w+)?)\b/i
+  );
+  const askingForPerson=!!(personPhraseMatch && /^[A-Z][a-z]+(?:\s[A-Z][a-z]+)?$/.test(personPhraseMatch[1]));
+  // Only look at how the call actually ENDED (last ~220 chars) — "thank you" anywhere in the whole blob
+  // would also match a business's own opening IVR greeting ("Thank you for calling X"), which says
+  // nothing about whether the call reached a resolution.
+  const naturalClosing=/\b(thank you( so much)?|thanks( so much)?|thanked (the|him|her|them)|appreciate it|bye( bye)?|have a (great|good|wonderful|nice) (day|one|rest of your day)|take care|no problem)\b/i.test(personSrc.slice(-220));
+  // The caller reached this business on purpose (not a wrong number) and the call reached a resolution
+  // (the agent took the message/info, closed out with a goodbye) — treat it as a real, handled contact:
+  // Valid Call, Not Booked. (Previously "Incorrect Business" — reconsidered: asking for a specific
+  // employee about an unrelated personal matter isn't the same as reaching the wrong company.)
+  if(!isService && askingForPerson && naturalClosing)
+    return normalize({summary,is_service_call:true,booking_status:"Not Booked",invalid_reason:"Valid Call",confidence:"Medium",engine:"heuristic"},call);
+
+  // Caller properly ends the call by stating SHE will call back — a real, if incomplete, contact attempt,
+  // not a technical disconnect, regardless of whether a specific reason was given (an interruption like
+  // "her boss is calling", or just deciding to try again later). Track it as a lead that hasn't resolved
+  // yet (Valid Call, Not Booked) rather than the generic Disconnected catch-all, which is for calls with
+  // no proper resolution at all. Allows up to a short filler ("just", "simply") between the "will" and
+  // "call back", and matches "callback" as one word too. (callerWillCallBack itself is now computed
+  // earlier in the function, right after isService, so the voicemail short-circuit above can use it too.)
+  if(!isService && callerWillCallBack)
+    return normalize({summary,is_service_call:true,booking_status:"Not Booked",invalid_reason:"Valid Call",confidence:"Medium",engine:"heuristic"},call);
+
+  // A technical/audio failure (static, "can't hear you", the line dropped) that ends the call BEFORE any
+  // actual resolution overrides the followUp/service-topic shortcut below — the caller's stated purpose
+  // (e.g. following up on an appointment) was never actually addressed, so this is genuinely a dropped
+  // line, not a resolved (even if unbooked) service contact. Dispatcher notes explicitly tag these calls
+  // "Disconnected Call" for exactly this reason. A booking/callback confirmed BEFORE the drop still wins.
+  // Only look at how the call actually ENDED (last ~300 chars) — a brief audio hiccup early in a long
+  // call ("we were breaking up" right after the greeting, then the conversation continues for hundreds
+  // more words and reaches a real resolution) is not the same as a technical failure that ends the call.
+  const technicalDisconnect=/\b(static|(?:can'?t|cannot|couldn'?t|not able to) hear (?:you|the caller|her|him|the agent)( clearly)?|bad connection|breaking up|voice (?:is|was|keeps|kept) breaking|cutting out|line (dropped|went dead|got disconnected)|lost (the call|connection)|call (got |was )?disconnected|dropped the call)\b/i.test(personSrc.slice(-300));
+  if(technicalDisconnect && !bookingConfirmed && !callbackPromised)
+    return normalize({summary,is_service_call:false,booking_status:"Not Booked",invalid_reason:"Disconnected",confidence:"Medium",engine:"heuristic"},call);
+
+  // Genuine service call. An ACTUAL booking (appointment set / caller agreed / callback promised) wins first,
+  // so a successfully scheduled call is never mislabeled. Only an unbooked call with a scheduling problem
+  // (caller declined the offered schedule, or no same-day availability) becomes "Not Available".
+  // Only counts as a booked wait-list if the agent FIRMLY placed the caller on the list (not a hypothetical
+  // "I would be able to add you IF I had cancellations") AND the caller agreed.
+  const placedOnWaitlist = /(\bi'?ll |i will |\bi'?ve |i have |\bi'?m |i am |going to |gonna |let me )(add(ing)? you|put(ting)? you|get you on|got you on|place you|placing you|placed you)[^.]{0,14}(urgency|cancellation|priority|standby|wait ?list)/.test(blob)
+    || /(you'?re|you are) (now )?on (the|our|my) (urgency|cancellation|priority|standby|wait) ?list/.test(blob)
+    || /(added|put) you [^.]{0,14}(urgency|cancellation|priority|standby|wait ?list)/.test(blob);
+  const waitlistAgreed = placedOnWaitlist && callerAgreed;
+  if(isService){
+    // Caller agreed to be placed on the cancellation / urgency wait-list -> a secured lead (Valid + Booked),
+    // NOT "Not Available", even though there was no same-day slot.
+    if(waitlistAgreed)
+      return normalize({summary,is_service_call:true,booking_status:"Booked",invalid_reason:"Valid Call",confidence:"Medium",engine:"heuristic"},call);
+    // A CONFIRMED booking wins outright, even if the caller grumbled earlier. A merely PROMISED callback
+    // is weaker evidence — often just the agent describing a conditional process ("if you place the order,
+    // they'd give you a call to schedule") — so it does NOT win if the caller's own final words show she
+    // never committed and will decide and call back herself instead (see callerWillCallBack/callerDefers
+    // below); an explicit confirmation always overrides that.
+    // Checked BEFORE the bare followUp shortcut: a call that STARTS as a follow-up on an existing
+    // order/appointment can still end with a genuine NEW booking or callback commitment during that same
+    // conversation (e.g. following up on an order, then dispatch promises to call back to schedule
+    // install) — that must win over the "follow-up -> automatically Not Booked" default below.
+    const callerDefers=hasCaller("let me finalize","let me think about it","let me think it over","think it over",
+      "need to think about it","have to think about it","talk to my spouse","talk to my husband","talk to my wife",
+      "discuss it with my","let me decide","let me look it over","let me consider","let me talk to")
+      || callerWillCallBack;
+    if(bookingConfirmed || (callbackPromised && !callerDefers))
+      return normalize({summary,is_service_call:true,booking_status:"Booked",invalid_reason:"Valid Call",confidence:"Medium",engine:"heuristic"},call);
+    if(followUp) return normalize({summary,is_service_call:true,booking_status:"Not Booked",invalid_reason:"Valid Call",confidence:"Medium",engine:"heuristic"},call);
+    // Caller actively declined the offered schedule / went elsewhere. Shopping around for a better price
+    // or provider is still a legitimate, resolved contact (Valid Call) — only a genuine timing/availability
+    // mismatch counts as Not Available.
+    if(declinedForAvailability)
+      return normalize({summary,is_service_call:true,booking_status:"Not Booked",invalid_reason:"Not Available",confidence:"Medium",engine:"heuristic"},call);
+    if(declinedForAlternative)
+      return normalize({summary,is_service_call:true,booking_status:"Not Booked",invalid_reason:"Valid Call",confidence:"Medium",engine:"heuristic"},call);
+    // Agent offered to book AND the caller agreed → booked. Not when the caller defers/will call back
+    // herself instead — a loose "committed"-word hit (e.g. "he'd callback tomorrow and set it up [himself]")
+    // describes a FUTURE self-initiated action, not a present agreement to what the agent just offered.
+    if(bookingOffered && callerAgreed && !callerDefers)
+      return normalize({summary,is_service_call:true,booking_status:"Booked",invalid_reason:"Valid Call",confidence:"Medium",engine:"heuristic"},call);
+    // Agent had no same-day availability and nothing booked.
+    if(noSameDay)
+      return normalize({summary,is_service_call:true,booking_status:"Not Booked",invalid_reason:"Not Available",confidence:"Medium",engine:"heuristic"},call);
+    // Everything else, including an agent offer with NO caller response / no agreement → Not Booked.
+    return normalize({summary,is_service_call:true,booking_status:"Not Booked",invalid_reason:"Valid Call",confidence:"Low",engine:"heuristic"},call);
+  }
+
+  // Very short / dropped calls with no clear content — Disconnected. normalize() resolves the booking:
+  // Booked if an agreement/callback was detected before the drop, otherwise Not Booked (never N/A).
+  if(dur>0 && dur<12 && t.replace(/\s/g,"").length<50)
+    return normalize({summary:summary||"Very short call, unclear outcome.",is_service_call:false,booking_status:booked?"Booked":"Not Booked",invalid_reason:"Disconnected",confidence:"Low",engine:"heuristic"},call);
+
+  // A call with substantial caller engagement that reaches a natural closing (a goodbye/thanks exchange)
+  // is a real, handled contact — even when no specific topic keyword matched (e.g. a general follow-up
+  // question that isn't about scheduling/pricing, or doesn't name a specific person). This is NOT the old
+  // "long call = valid" heuristic (removed — see the counter-example above): it additionally requires the
+  // call to have actually reached a resolution, not just run long.
+  if(callerText.replace(/\s/g,"").length>40 && naturalClosing)
+    return normalize({summary,is_service_call:true,booking_status:booked?"Booked":"Not Booked",invalid_reason:"Valid Call",confidence:"Low",engine:"heuristic"},call);
+
+  // No clear conclusion — Disconnected, Not Booked (or Booked if an agreement slipped through, per normalize()).
+  // (Deliberately not "substantive caller content -> Valid Call" on its own: length alone isn't evidence the
+  // call was actually about the business's services — see the isService note above for a real counter-example.)
+  return normalize({summary:summary||"Unclassified call.",is_service_call:false,booking_status:booked?"Booked":"Not Booked",invalid_reason:"Disconnected",confidence:"Low",engine:"heuristic"},call);
+}
+
+function firstSentence(txt){
+  if(!txt) return "";
+  const clean=txt.replace(/\s+/g," ").trim();
+  const m=clean.match(/^.{0,180}?[.!?](\s|$)/);
+  return (m?m[0]:clean.slice(0,180)).trim();
+}
+/* Heuristic transcript summary: grab the caller's first substantive line (their intent),
+   skipping speaker labels and the agent's greeting. Falls back to firstSentence. */
+function heuristicSummary(txt){
+  if(!txt) return "";
+  const lines=txt.split(/\n+/).map(l=>l.trim()).filter(Boolean);
+  const callerLines=lines.filter(l=>/^caller\s*:/i.test(l)).map(l=>l.replace(/^caller\s*:/i,"").trim());
+  // first caller line longer than a greeting
+  const intent=callerLines.find(l=>l.replace(/[^a-z]/gi,"").length>12 && !/^(hi|hey|hello|good (morning|afternoon|evening)|yes|no|okay|ok|thanks|thank you)\b/i.test(l));
+  const base=intent||callerLines[0]||txt.replace(/^\s*(agent|caller)\s*:/i,"");
+  const s=firstSentence(base);
+  return s ? ("Caller: "+s) : firstSentence(txt);
+}
+
+/* apply deterministic overrides + guardrails */
+function normalize(a, call){
+  const status=(call.status||"").toLowerCase();
+  // hard status overrides
+  if(status.includes("abandon")){ a.invalid_reason="Abandoned"; a.is_service_call=false; a.booking_status="Not Booked"; }
+  else if(status.includes("missed")){ a.invalid_reason="Missed"; a.is_service_call=false; a.booking_status="Not Booked"; }
+  // consistency guards
+  if(!REASONS.includes(a.invalid_reason)) a.invalid_reason="Valid Call";
+  if(!["Booked","Not Booked","N/A"].includes(a.booking_status)) a.booking_status="N/A";
+  // Disconnected calls always resolve to a booking outcome (never N/A): an agreed appointment or a
+  // promised callback before the drop -> Booked (treated as a Valid Call); otherwise -> Not Booked.
+  // A disconnected call only counts as a service attempt (is_service_call true) if the caller actually
+  // said something AND it names one of the business's actual services — not just any caller speech.
+  // A long, substantive conversation about something wholly unrelated (e.g. a caller reaching a specific
+  // employee about a personal dispute that has nothing to do with the business) must not count as a
+  // service attempt just because the caller talked a lot.
+  if(a.invalid_reason==="Disconnected" && !status.includes("abandon") && !status.includes("missed")){
+    const det=detectRequestedService(call);
+    const namesKnownService = !!det && Object.prototype.hasOwnProperty.call(SERVICE_LABEL_MAP, det);
+    if(a.booking_status==="Booked"){ a.invalid_reason="Valid Call"; a.is_service_call=true; }
+    else { a.booking_status="Not Booked"; a.is_service_call=namesKnownService; }
+  }
+  if(!a.is_service_call && a.booking_status!=="N/A" && a.invalid_reason!=="Valid Call" && a.invalid_reason!=="Disconnected") a.booking_status="N/A";
+  if(a.invalid_reason==="Valid Call") a.is_service_call=true;
+  if(a.is_service_call && a.booking_status==="N/A") a.booking_status="Not Booked";
+  // Per business rule, these non-service categories are marked "Not Booked" (never N/A).
+  if(["Abandoned","Missed","Incorrect Business","Job Application","Marketing","Spam","Wrong Number","Cancelled","Disconnected"].includes(a.invalid_reason))
+    a.booking_status="Not Booked";
+  // "Not Available" is a genuine service call that didn't book due to scheduling → service + Not Booked.
+  if(a.invalid_reason==="Not Available"){ a.is_service_call=true; a.booking_status="Not Booked"; }
+  if(!a.confidence) a.confidence="Medium";
+  // tone validation + defaults
+  if(!TONES.includes(a.agent_tone)) a.agent_tone = (call.transcription||"").trim()?"Professional":"N/A";
+  const noAgent = status.includes("missed")||status.includes("abandon")||status.includes("voicemail")||!(call.transcription||"").trim();
+  if(noAgent){ a.agent_tone="N/A"; a.agent_tone_reason=""; }
+  if(a.agent_tone==="N/A") a.agent_tone_reason="";
+  if(a.agent_tone_reason==null) a.agent_tone_reason="";
+  // Repeat caller is a separate attribute derived from CallRail's First-Time flag — it does NOT
+  // affect validity/booking, which are always assessed on the call's own merits.
+  var ftl=(call.firstTime||"").toLowerCase();
+  a.repeat_caller = (ftl.indexOf("false")>-1||ftl==="no"||ftl==="0") ? "Yes"
+                  : (ftl.indexOf("true")>-1||ftl==="yes"||ftl==="1") ? "No" : "";
+  // Requested service: only meaningful for genuine service calls, EXCEPT a Disconnected call may still
+  // have named one of the business's actual services before the line dropped — surface it if so. This
+  // deliberately requires a match against the known service taxonomy (not the generic free-text fallback,
+  // which can pick up an unrelated phrase like "a refund" from a call that has nothing to do with the
+  // business). Every other non-service category (spam, wrong number, job application, marketing,
+  // incorrect business) has no genuine service request, so it stays "—". Use the AI's value when it's
+  // specific; otherwise fall back to transcript-based detection, cleaned to a short noun-phrase label.
+  if(!a.is_service_call){
+    const det = a.invalid_reason==="Disconnected" ? detectRequestedService(call) : null;
+    const namesKnownService = !!det && Object.prototype.hasOwnProperty.call(SERVICE_LABEL_MAP, det);
+    a.requested_service = namesKnownService ? cleanServiceLabel(det) : "—";
+  } else {
+    const rsv=(a.requested_service||"").trim();
+    if(!rsv || /^(a service request|service inquiry|service request|unclear|not clear|unknown|n\/a|none|—|-)$/i.test(rsv)){
+      const det=detectRequestedService(call);
+      a.requested_service = det ? cleanServiceLabel(det) : "Service inquiry (details unclear)";
+    } else {
+      a.requested_service = rsv.charAt(0).toUpperCase()+rsv.slice(1);
+    }
+  }
+  // Scheduled appointment day/time — only for booked calls; "N/A" when not booked.
+  if(a.booking_status==="Booked"){
+    let st=(a.scheduled_time||"").trim();
+    if(!st || /^(n\/a|na|none|unknown|—|-|not (specified|stated|given))$/i.test(st)) st=detectScheduledTime(call);
+    // Resolve a relative "Today"/"Tomorrow" to the actual date, based on when the call was made.
+    a.scheduled_time = resolveSchedDate(st || "Time not specified", call.startTime);
+  } else if(a.invalid_reason==="Not Available"){
+    // Agent couldn't book within the day — show the NEXT AVAILABLE date the agent offered.
+    let na=(a.scheduled_time||"").trim();
+    if(!na || /^(n\/a|na|none|unknown|—|-|not (specified|stated|given))$/i.test(na)) na=detectScheduledTime(call);
+    na=resolveSchedDate(na, call.startTime);
+    a.scheduled_time = na ? ("Next available: "+na) : "N/A";
+  } else {
+    a.scheduled_time="N/A";
+  }
+  if(!a.engine) a.engine="heuristic";
+  return a;
+}
+
+/* ============================================================
+   RENDERING
+   ============================================================ */
+$("search").addEventListener("input",renderTable);
+$("fBooking").addEventListener("change",renderTable);
+$("fService").addEventListener("change",renderTable);
+$("fTone").addEventListener("change",renderTable);
+$("fStatus").addEventListener("change",renderTable);
+
+function renderAll(){ renderStats(); renderReasons(); renderTable(); }
+
+function filtered(){
+  const q=$("search").value.toLowerCase().trim();
+  const fb=$("fBooking").value, fs=$("fService").value, fst=$("fStatus").value, ft=$("fTone").value;
+  return CALLS.filter(c=>{
+    const a=c.analysis;
+    if(activeReason && (!a || a.invalid_reason!==activeReason)) return false;
+    if(fb && (!a || a.booking_status!==fb)) return false;
+    if(fs==="yes" && (!a || !a.is_service_call)) return false;
+    if(fs==="no" && (a && a.is_service_call)) return false;
+    if(ft==="flag" && (!a || !["Rude","Curt"].includes(a.agent_tone))) return false;
+    if(ft && ft!=="flag" && (!a || a.agent_tone!==ft)) return false;
+    if(fst && c.status!==fst) return false;
+    if(q){
+      const hay=(c.caller+" "+c.phone+" "+c.company+" "+c.numberName+" "+c.transcription+" "+(a?a.summary:"")).toLowerCase();
+      if(!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function renderStats(){
+  const analyzed=CALLS.filter(c=>c.analysis);
+  const service=analyzed.filter(c=>c.analysis.is_service_call);
+  const booked=analyzed.filter(c=>c.analysis.booking_status==="Booked");
+  const notBooked=analyzed.filter(c=>c.analysis.booking_status==="Not Booked");
+  const valid=analyzed.filter(c=>c.analysis.invalid_reason==="Valid Call");
+  const rude=analyzed.filter(c=>c.analysis.agent_tone==="Rude");
+  const curt=analyzed.filter(c=>c.analysis.agent_tone==="Curt");
+  $("stRude").textContent=rude.length+curt.length;
+  $("stRudeSub").textContent=`${rude.length} rude · ${curt.length} curt`;
+  $("stTotal").textContent=CALLS.length;
+  $("stAnalyzed").textContent=analyzed.length+" analyzed";
+  $("stService").textContent=service.length;
+  $("stServicePct").textContent=analyzed.length?Math.round(service.length/analyzed.length*100)+"% of analyzed":"—";
+  $("stBooked").textContent=booked.length;
+  const bookable=booked.length+notBooked.length;
+  $("stBookRate").textContent=bookable?Math.round(booked.length/bookable*100)+"% booking rate":"—";
+  $("stNotBooked").textContent=notBooked.length;
+  $("stValid").textContent=valid.length;
+  $("stValidPct").textContent=analyzed.length?Math.round(valid.length/analyzed.length*100)+"% of analyzed":"—";
+}
+
+function renderReasons(){
+  const counts={}; REASONS.forEach(r=>counts[r]=0);
+  CALLS.forEach(c=>{ if(c.analysis) counts[c.analysis.invalid_reason]=(counts[c.analysis.invalid_reason]||0)+1; });
+  const grid=$("reasonGrid");
+  grid.innerHTML=REASONS.map(r=>{
+    const active=activeReason===r?" active":"";
+    return `<div class="reason-pill${active}" data-r="${esc(r)}">
+      <span class="reason-dot" style="background:${REASON_COLORS[r]}"></span>${esc(r)} <b>${counts[r]||0}</b></div>`;
+  }).join("");
+  grid.querySelectorAll(".reason-pill").forEach(p=>p.addEventListener("click",()=>{
+    activeReason = activeReason===p.dataset.r ? "" : p.dataset.r;
+    renderReasons(); renderTable();
+  }));
+}
+
+function renderTable(){
+  const rows=filtered();
+  $("rowCount").innerHTML=`<b>${rows.length}</b> of ${CALLS.length} calls`;
+  if(!CALLS.length){ $("emptyState").style.display="block"; $("tblScroll").style.display="none"; return; }
+  $("emptyState").style.display="none"; $("tblScroll").style.display="block";
+  const tb=$("tbody");
+  tb.innerHTML=rows.map((c,i)=>rowHTML(c,i)).join("");
+  tb.querySelectorAll(".expand-btn").forEach(b=>b.addEventListener("click",()=>{
+    const dr=document.getElementById("detail-"+b.dataset.i);
+    const open=dr.style.display!=="none";
+    dr.style.display=open?"none":"table-row";
+    b.textContent=open?"+":"−";
+  }));
+}
+
+function rowHTML(c,i){
+  const a=c.analysis;
+  const summary = a ? esc(a.summary).replace(/\n/g,"<br>") : '<span class="pending">not analyzed yet</span>';
+  const service = a ? (a.is_service_call?'<span class="badge b-yes">Service</span>':'<span class="badge b-no">No</span>') : '<span class="pending">—</span>';
+  const booking = bookingBadge(a ? a.booking_status : "Not Booked");
+  const reason = a ? `<span class="reason-tag"><span class="reason-dot" style="background:${REASON_COLORS[a.invalid_reason]||'#94a3b8'}"></span>${esc(a.invalid_reason)}</span>` : '<span class="pending">—</span>';
+  const tone = a ? `<span class="badge ${TONE_CLASS[a.agent_tone]||'t-na'}">${esc(a.agent_tone)}</span>${a.agent_tone_reason?`<div class="c-sub">${esc(a.agent_tone_reason)}</div>`:''}` : '<span class="pending">—</span>';
+  // Checked = first-time caller, unchecked = repeat caller. Read straight from CallRail's flag.
+  const ftl=(c.firstTime||"").toLowerCase();
+  const isFirstTime = ftl.indexOf("true")>-1||ftl==="yes"||ftl==="1";
+  const isRepeatCaller = ftl.indexOf("false")>-1||ftl==="no"||ftl==="0";
+  const repeat = (isFirstTime||isRepeatCaller)
+    ? `<input type="checkbox" class="ck"${isFirstTime?" checked":""} tabindex="-1" aria-label="${isFirstTime?"First-time caller":"Repeat caller"}" title="${isFirstTime?"First-time caller":"Repeat caller"}">`
+    : '<span class="pending">—</span>';
+  const conf = a && a.confidence ? `<div class="c-sub">${esc(a.confidence)} conf &middot; ${esc((a.engine||'').split(':')[0])}</div>`:'';
+  const rowCls = a && a.agent_tone==="Rude" ? ' class="rude-row"' : '';
+  return `<tr${rowCls}>
+    <td><span class="expand-btn" data-i="${i}">+</span></td>
+    <td style="white-space:nowrap">${esc(fmtDate(c.startTime))}</td>
+    <td><span class="status-tag">${esc(c.status||"")}</span></td>
+    <td>${esc(c.company||"—")}</td>
+    <td><div class="c-caller">${esc(c.caller||"Unknown")}</div><div class="c-sub">${esc(c.numberName||"")}</div></td>
+    <td style="white-space:nowrap"><a class="rec-link" href="tel:${esc((c.phone||'').replace(/[^0-9+]/g,''))}">${esc(c.phone?fmtPhone(c.phone):"—")}</a></td>
+    <td>${fmtDur(c.duration)}</td>
+    <td>${service}</td>
+    <td class="c-reqsvc">${esc(a && a.requested_service ? a.requested_service : requestedServiceLabel(c))}</td>
+    <td>${booking}</td>
+    <td class="c-sched">${esc(a ? (a.scheduled_time||"N/A") : "—")}</td>
+    <td>${repeat}</td>
+    <td>${reason}</td>
+    <td>${tone}</td>
+    <td class="c-summary">${summary}${conf}</td>
+  </tr>
+  <tr class="expand-row" id="detail-${i}" style="display:none">
+    <td colspan="15" class="detail"><div class="detail-inner">
+      <div class="detail-block">
+        <h4>Full Transcription</h4>
+        <div class="transcript">${c.transcription?esc(c.transcription):'<em>No transcription available for this call.</em>'}</div>
+      </div>
+      <div class="detail-block">
+        ${renderKeyFacts(a)}
+        <h4${a&&a.key_facts?' style="margin-top:14px"':''}>Dispatcher Note</h4>
+        <div class="note-box">${c.note?esc(c.note):'<em>None</em>'}</div>
+        <h4 style="margin-top:14px">Call Details</h4>
+        <div class="detail-meta">
+          ${a?`<b>Agent Tone:</b> ${esc(a.agent_tone)}${a.agent_tone_reason?" — "+esc(a.agent_tone_reason):""}<br>`:""}
+          <b>Company:</b> ${esc(c.company||"—")}<br>
+          <b>Tracking #:</b> ${esc(c.tracking||"—")}<br>
+          <b>Email:</b> ${esc(c.email||"—")}<br>
+          <b>Keywords:</b> ${esc(c.keywords||"—")}<br>
+          ${c.recording?`<b>Recording:</b> <a class="rec-link" href="${esc(c.recording)}" target="_blank" rel="noopener">listen &#8599;</a>`:""}
+        </div>
+      </div>
+    </div></td>
+  </tr>`;
+}
+
+function bookingBadge(s){
+  // Binary only: "Booked" or "Not Booked" — anything else (incl. legacy N/A) renders as Not Booked.
+  if(s==="Booked") return '<span class="badge b-booked">Booked</span>';
+  return '<span class="badge b-notbooked">Not Booked</span>';
+}
+
+/* ============================================================
+   EXPORT
+   ============================================================ */
+// Valid Call / Not Available / Cancelled are genuine leads -> Call Type "Valid"; everything else -> "Invalid".
+const VALID_CALL_TYPES=new Set(["Valid Call","Not Available","Cancelled"]);
+function callTypeLabel(c){
+  const r=c.analysis&&c.analysis.invalid_reason;
+  return r ? (VALID_CALL_TYPES.has(r)?"Valid":"Invalid") : "";
+}
+// The summary gets " | <Reason>" appended for every reason except "Valid Call" (which needs no suffix).
+// "Disconnected" specifically appends "Disconnected Call", not the bare reason string.
+const SUMMARY_SUFFIX_OVERRIDE={"Disconnected":"Disconnected Call"};
+function summaryWithReason(c){
+  const a=c.analysis;
+  if(!a) return "";
+  const r=a.invalid_reason;
+  if(!r || r==="Valid Call") return a.summary||"";
+  return `${a.summary} | ${SUMMARY_SUFFIX_OVERRIDE[r]||r}`;
+}
+function firstTimeLabel(c){
+  const f=(c.firstTime||"").toLowerCase();
+  if(f.indexOf("true")>-1||f==="yes"||f==="1") return "True";
+  if(f.indexOf("false")>-1||f==="no"||f==="0") return "False";
+  return "";
+}
+const MONTHS_SHORT=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+function csvDate(s){
+  if(!s) return "";
+  const d=new Date(s);
+  if(isNaN(d)) return "";
+  return `${MONTHS_SHORT[d.getMonth()]} ${String(d.getDate()).padStart(2,"0")}, ${d.getFullYear()}`;
+}
+function csvTime(s){
+  if(!s) return "";
+  const d=new Date(s);
+  if(isNaN(d)) return "";
+  let h=d.getHours();
+  const ap=h>=12?"PM":"AM";
+  h=h%12; if(h===0) h=12;
+  return `${String(h).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")} ${ap}`;
+}
+
+const EXPORT_COLS=[
+  ["Date",c=>csvDate(c.startTime)],
+  ["Time",c=>csvTime(c.startTime)],
+  ["DurationM",c=>fmtDur(c.duration)],
+  ["Call Status","status"],
+  ["Number Name","numberName"],
+  ["Phone Number",c=>fmtPhone(c.phone)],
+  ["Name","caller"],
+  ["Booked or Not Booked",c=>c.analysis?c.analysis.booking_status:""],
+  ["Call Summary",c=>summaryWithReason(c)],
+  ["First time caller",c=>firstTimeLabel(c)],
+  ["Call Type",c=>callTypeLabel(c)],
+  ["Category / Reason",c=>c.analysis?c.analysis.invalid_reason:""],
+  ["Agent Tone",c=>c.analysis?c.analysis.agent_tone:""]
+];
+
+function exportRows(){
+  const rows=filtered();
+  return rows.map(c=>{
+    const o={};
+    EXPORT_COLS.forEach(([label,acc])=>{ o[label]= typeof acc==="function"?acc(c):(c[acc]??""); });
+    return o;
+  });
+}
+
+$("exportCsv").addEventListener("click",()=>{
+  const data=exportRows();
+  if(!data.length){ toast("No rows to export.",true); return; }
+  const headers=EXPORT_COLS.map(c=>c[0]);
+  const csv=[headers.map(csvCell).join(",")]
+    .concat(data.map(r=>headers.map(h=>csvCell(r[h])).join(","))).join("\r\n");
+  download(new Blob(["﻿"+csv],{type:"text/csv;charset=utf-8;"}),`CallRail_Analysis_${stamp()}.csv`);
+  toast(`Exported ${data.length} rows to CSV.`);
+});
+
+$("exportXlsx").addEventListener("click",()=>{
+  const data=exportRows();
+  if(!data.length){ toast("No rows to export.",true); return; }
+  const headers=EXPORT_COLS.map(c=>c[0]);
+  const aoa=[headers].concat(data.map(r=>headers.map(h=>r[h])));
+  const ws=XLSX.utils.aoa_to_sheet(aoa);
+  ws["!cols"]=headers.map(h=>({wch: h==="Call Summary"?46 : h==="Full Transcription"?60 : h==="Note"?40 : h==="Agent Tone Notes"?34 : Math.max(12,h.length+2)}));
+  ws["!freeze"]={xSplit:0,ySplit:1};
+  // style header row (RTM navy + orange text)
+  const range=XLSX.utils.decode_range(ws["!ref"]);
+  for(let c=range.s.c;c<=range.e.c;c++){
+    const ref=XLSX.utils.encode_cell({r:0,c});
+    if(ws[ref]) ws[ref].s={fill:{fgColor:{rgb:"042232"}},font:{color:{rgb:"F99E23"},bold:true},alignment:{horizontal:"left"}};
+  }
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,"Call Analysis");
+  XLSX.writeFile(wb,`CallRail_Analysis_${stamp()}.xlsx`);
+  toast(`Exported ${data.length} rows to Excel.`);
+});
+
+function download(blob,name){
+  const u=URL.createObjectURL(blob); const a=document.createElement("a");
+  a.href=u; a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(u),1000);
+}
+function csvCell(v){ v=v==null?"":String(v); return /[",\r\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }
+function stamp(){ const d=new Date(); return d.toISOString().slice(0,10); }
+
+/* ============================================================
+   HELPERS
+   ============================================================ */
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+function fmtDate(s){
+  if(!s) return "";
+  const d=new Date(s);
+  if(isNaN(d)) return s;
+  return d.toLocaleString([], {month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit"});
+}
+function fmtDur(s){ const n=parseInt(s||"0")||0; const h=Math.floor(n/3600),m=Math.floor((n%3600)/60),sec=n%60; return h+":"+String(m).padStart(2,"0")+":"+String(sec).padStart(2,"0"); }
+/* Format a US phone number as (999) 999-9999; leave non-standard values unchanged. */
+function fmtPhone(p){
+  if(!p) return "";
+  let d=String(p).replace(/\D/g,"");
+  if(d.length===11 && d[0]==="1") d=d.slice(1);
+  if(d.length===10) return "("+d.slice(0,3)+") "+d.slice(3,6)+"-"+d.slice(6);
+  return String(p);
+}
+
+/* expose a cache-clear helper via console for re-runs */
+window.clearCallRailCache=function(){ ANALYSIS={}; localStorage.removeItem(LS_KEY); CALLS.forEach(c=>c.analysis=null); renderAll(); toast("Analysis cache cleared."); };
+
+/* Reset Analysis — discard cached results, then immediately re-analyze every call */
+$("resetBtn").addEventListener("click",()=>{
+  if(running){ toast("Analysis is still running — stop it first.",true); return; }
+  if(!CALLS.length){ toast("Upload a CallRail export first.",true); return; }
+  ANALYSIS={}; localStorage.removeItem(LS_KEY);
+  CALLS.forEach(c=>c.analysis=null);
+  renderAll();
+  toast("Cache cleared — re-analyzing all calls…");
+  runAnalysis();
+});
+</script>
+</body>
+</html>
