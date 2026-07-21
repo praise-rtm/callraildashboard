@@ -310,7 +310,7 @@ const TONE_CLASS = {"Friendly":"t-friendly","Professional":"t-pro","Neutral":"t-
 
 // Bump this version whenever classification logic changes, so stale cached results
 // from an older ruleset are discarded instead of silently reused.
-const LS_KEY = "callrail_analysis_v84";
+const LS_KEY = "callrail_analysis_v85";
 const LS_APIKEY = "callrail_api_key";
 const LS_MODEL = "callrail_model";
 
@@ -1303,12 +1303,17 @@ function classifyHeuristic(call){
   // Whether the call was routed to a voicemail box is used further down, AFTER spam/wrong-number/job-
   // application/marketing are checked — a vendor pitch or spam message left on an internal extension's
   // voicemail must still be classified as that, not swept into Valid+Booked just because it reached voicemail.
-  // Deliberately excludes the "record your name and reason for calling" screening prompt: that's Bio
-  // Remedies' call-screening greeting, played at the START of EVERY call to that business regardless of
-  // outcome — a call that continues into a full live conversation still opens with it, so matching on it
-  // alone falsely flagged live, answered calls as voicemail. Only the actual unavailable/leave-a-message
-  // outcome phrases that play AFTER screening fails count as real voicemail routing.
-  const routedToInternalVoicemail=/leave (?:an? )?(?:additional )?message|reply after the tone|this person is not available/i.test(agentText);
+  // Deliberately excludes the "record your name and reason for calling" screening prompt on its own:
+  // that's Bio Remedies' call-screening greeting, played at the START of EVERY call to that business
+  // regardless of outcome — a call that continues into a full live conversation still opens with it, so
+  // matching on it alone falsely flagged live, answered calls as voicemail. Only the actual unavailable/
+  // leave-a-message outcome phrases that play AFTER screening fails count as real voicemail routing —
+  // UNLESS the agent never speaks again after that opening screening line (agentTurnCount<=1): then the
+  // caller's message was left with no live pickup at all, functionally a voicemail drop even though the
+  // system's specific rejection phrase isn't always spoken before the caller hangs up.
+  const agentTurnCount=(call.transcription||"").split(/\n+/).filter(l=>/^agent\s*:/i.test(l)).length;
+  const screenedNoPickup=agentTurnCount<=1 && /record your name and reason for calling/i.test(agentText);
+  const routedToInternalVoicemail=screenedNoPickup||/leave (?:an? )?(?:additional )?message|reply after the tone|this person is not available/i.test(agentText);
   const personSrc=(call.transcription||"")+" "+(call.note||"");
   // Caller properly ends the call by stating SHE will call back herself — computed early so it can also
   // gate the voicemail short-circuit below, not just the later booking checks (a caller who says "he
@@ -1323,7 +1328,7 @@ function classifyHeuristic(call){
   // appointment"). Making it optional matched the bare noun phrase "a scheduled appointment", so a caller
   // merely REFERRING to their existing appointment ("I have a scheduled appointment for tomorrow. Can you
   // cancel?") was read as a newly-confirmed booking — which then suppressed the "Cancelled" result.
-  const bookingConfirmed = /appointment (was |is |has been )?(set|scheduled|booked|confirmed|arranged)|(set|scheduled|booked|arranged) (up )?(an|the|your|you an|you the) appointment|arrangements (are|were) made|booked you (in|for|today)|you'?re booked (in|for|today)|got you (down|scheduled|booked|on the schedule)|(you|we)'?re all set|(get|got) (this|it|you|that|everything) (all )?(set up|scheduled|booked|arranged)|put (you|it|him|her) (down|under|on the schedule)|i (will|'?ll|'?m going to|'?m gonna) (have|get|send|put|schedule)[^.]{0,25}(there|out|over|down|come|between|today|tomorrow|this|scheduled|set)|(someone|somebody) (will|is going to|'?s going to) (be there|come out|arrive|head)|(technician|tech) (will|'?s going to) (arrive|be there|come|head)|(is|are|they'?re) coming (out )?(today|tomorrow|between|this)|(is|are|they'?re)(?: supposed to be)? going over (today|tomorrow|this)|(we'?ll |\bi'?ll )see you (then|tomorrow|on |this |at )|see you (then|tomorrow|on the)|look forward to seeing you|caller (agreed|acknowledged|confirmed)|can be scheduled (for )?(today|tomorrow|this (week|afternoon|morning|evening)|on \w+day)|(is|are|they'?re|he'?s|she'?s) on (?:the|our) schedule( right now)?|let'?s go ahead and (?:also )?(?:tentatively )?schedule|go ahead and (?:tentatively )?schedule (?:that|it|you|this)|tentatively schedule (?:that|it|you|this)/i.test(blob)
+  const bookingConfirmed = /appointment (was |is |has been )?(set|scheduled|booked|confirmed|arranged)|(set|scheduled|booked|arranged) (up )?(an|the|your|you an|you the) appointment|arrangements (are|were) made|booked you (in|for|today)|you'?re booked (in|for|today)|got you (down|scheduled|booked|on the schedule)|(you|we)'?re all set|(get|got) (this|it|you|that|everything) (all )?(set up|scheduled|booked|arranged)|put (you|it|him|her) (down|under|on the schedule)|i (will|'?ll|'?m going to|'?m gonna) (have|get|send|put|schedule)[^.]{0,25}(there|out|over|down|come|between|today|tomorrow|this|scheduled|set)|(someone|somebody) (will|is going to|'?s going to) (be there|come out|arrive|head)|(technician|tech) (will|'?s going to) (arrive|be there|come|head)|(is|are|they'?re) coming (out )?(today|tomorrow|between|this)|(is|are|they'?re)(?: supposed to be)? going over (today|tomorrow|this)|(we'?ll |\bi'?ll )see you (then|tomorrow|on |this |at )|see you (then|tomorrow|on the)|look forward to seeing you|caller (agreed|acknowledged|confirmed)|can be scheduled (for )?(today|tomorrow|this (week|afternoon|morning|evening)|on \w+day)|(is|are|they'?re|he'?s|she'?s) on (?:the|our) schedule( right now)?|let'?s go ahead and (?:also )?(?:tentatively )?schedule|go ahead and (?:tentatively )?schedule (?:that|it|you|this)|tentatively schedule (?:that|it|you|this)|put[^.]{0,20}service call[^.]{0,10}\bin\b|put in[^.]{0,20}service call/i.test(blob)
     || /(?:^|\|)\s*booked\b/i.test(call.note||"");   // dispatcher-note "Booked today" tag (browser-safe, no lookbehind)
   // Agent OFFERS to book (contingent on the caller agreeing).
   // NOTE: bare "i can get"/"i could do"/"we can send" etc. were removed — those match completely
