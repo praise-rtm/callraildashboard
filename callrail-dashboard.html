@@ -250,6 +250,20 @@ tbody tr.rude-row:hover{background:#ffecec}
     <select class="tsel" id="fService"><option value="">Service &amp; non-service</option><option value="yes">Service calls</option><option value="no">Non-service</option></select>
     <select class="tsel" id="fTone"><option value="">All agent tones</option><option>Friendly</option><option>Professional</option><option>Neutral</option><option>Curt</option><option>Rude</option><option value="flag">Rude or Curt</option><option>N/A</option></select>
     <select class="tsel" id="fStatus"><option value="">All CallRail statuses</option></select>
+    <select class="tsel" id="fDateRange">
+      <option value="">All dates</option>
+      <option value="today">Today</option>
+      <option value="yesterday">Yesterday</option>
+      <option value="this_week">This week</option>
+      <option value="last_week">Last week</option>
+      <option value="this_month">This month</option>
+      <option value="last_month">Last month</option>
+      <option value="this_year">This year</option>
+      <option value="last_year">Last year</option>
+      <option value="custom">Custom range&hellip;</option>
+    </select>
+    <input type="date" class="tsel" id="fDateFrom" style="display:none" />
+    <input type="date" class="tsel" id="fDateTo" style="display:none" />
     <span class="row-count" id="rowCount"></span>
     <div class="spacer"></div>
     <button class="btn" id="exportCsv" disabled>&#128190; Export CSV</button>
@@ -1704,12 +1718,50 @@ $("fBooking").addEventListener("change",renderTable);
 $("fService").addEventListener("change",renderTable);
 $("fTone").addEventListener("change",renderTable);
 $("fStatus").addEventListener("change",renderTable);
+$("fDateRange").addEventListener("change",()=>{
+  const isCustom=$("fDateRange").value==="custom";
+  $("fDateFrom").style.display=isCustom?"":"none";
+  $("fDateTo").style.display=isCustom?"":"none";
+  renderTable();
+});
+$("fDateFrom").addEventListener("change",renderTable);
+$("fDateTo").addEventListener("change",renderTable);
 
 function renderAll(){ renderStats(); renderReasons(); renderTable(); }
+
+// Returns [start,end] Date bounds (either side may be null = unbounded) for a date-range preset,
+// or null when no date filtering should apply ("All dates", or "Custom" with both fields empty).
+function dateRangeBounds(preset,customFrom,customTo){
+  if(!preset) return null;
+  const startOfDay=d=>new Date(d.getFullYear(),d.getMonth(),d.getDate());
+  const endOfDay=d=>new Date(d.getFullYear(),d.getMonth(),d.getDate(),23,59,59,999);
+  const addDays=(d,n)=>{ const r=new Date(d); r.setDate(r.getDate()+n); return r; };
+  const today=startOfDay(new Date());
+  switch(preset){
+    case "today": return [today,endOfDay(today)];
+    case "yesterday": { const y=addDays(today,-1); return [y,endOfDay(y)]; }
+    // Week runs Sunday–Saturday (JS getDay(): Sunday=0).
+    case "this_week": { const start=addDays(today,-today.getDay()); return [start,endOfDay(addDays(start,6))]; }
+    case "last_week": { const start=addDays(today,-today.getDay()-7); return [start,endOfDay(addDays(start,6))]; }
+    case "this_month": return [new Date(today.getFullYear(),today.getMonth(),1), new Date(today.getFullYear(),today.getMonth()+1,0,23,59,59,999)];
+    case "last_month": return [new Date(today.getFullYear(),today.getMonth()-1,1), new Date(today.getFullYear(),today.getMonth(),0,23,59,59,999)];
+    case "this_year": return [new Date(today.getFullYear(),0,1), new Date(today.getFullYear(),11,31,23,59,59,999)];
+    case "last_year": return [new Date(today.getFullYear()-1,0,1), new Date(today.getFullYear()-1,11,31,23,59,59,999)];
+    case "custom": {
+      if(!customFrom && !customTo) return null;
+      // Date-only input values ("YYYY-MM-DD") parse as UTC midnight in JS — build from parts instead so
+      // the range lines up with the user's local calendar day, not shifted by their timezone offset.
+      const parseLocalDate=s=>{ const [y,m,d]=s.split("-").map(Number); return new Date(y,m-1,d); };
+      return [customFrom?startOfDay(parseLocalDate(customFrom)):null, customTo?endOfDay(parseLocalDate(customTo)):null];
+    }
+    default: return null;
+  }
+}
 
 function filtered(){
   const q=$("search").value.toLowerCase().trim();
   const fb=$("fBooking").value, fs=$("fService").value, fst=$("fStatus").value, ft=$("fTone").value;
+  const bounds=dateRangeBounds($("fDateRange").value,$("fDateFrom").value,$("fDateTo").value);
   return CALLS.filter(c=>{
     const a=c.analysis;
     if(activeReason && (!a || a.invalid_reason!==activeReason)) return false;
@@ -1719,6 +1771,12 @@ function filtered(){
     if(ft==="flag" && (!a || !["Rude","Curt"].includes(a.agent_tone))) return false;
     if(ft && ft!=="flag" && (!a || a.agent_tone!==ft)) return false;
     if(fst && c.status!==fst) return false;
+    if(bounds){
+      const d=new Date(c.startTime);
+      if(isNaN(d)) return false;
+      if(bounds[0] && d<bounds[0]) return false;
+      if(bounds[1] && d>bounds[1]) return false;
+    }
     if(q){
       const hay=(c.caller+" "+c.phone+" "+c.company+" "+c.numberName+" "+c.transcription+" "+(a?a.summary:"")).toLowerCase();
       if(!hay.includes(q)) return false;
