@@ -243,13 +243,8 @@ tbody tr.rude-row:hover{background:#ffecec}
     <div class="reason-grid" id="reasonGrid"></div>
   </div>
 
-  <!-- TOOLBAR -->
-  <div class="toolbar" id="toolbar" style="display:none">
-    <div class="search"><input type="text" id="search" placeholder="Search caller, phone, summary, transcript…" /></div>
-    <select class="tsel" id="fBooking"><option value="">All bookings</option><option>Booked</option><option>Not Booked</option></select>
-    <select class="tsel" id="fService"><option value="">Service &amp; non-service</option><option value="yes">Service calls</option><option value="no">Non-service</option></select>
-    <select class="tsel" id="fTone"><option value="">All agent tones</option><option>Friendly</option><option>Professional</option><option>Neutral</option><option>Curt</option><option>Rude</option><option value="flag">Rude or Curt</option><option>N/A</option></select>
-    <select class="tsel" id="fStatus"><option value="">All CallRail statuses</option></select>
+  <!-- DATE RANGE ROW -->
+  <div class="toolbar" id="dateToolbar" style="display:none">
     <select class="tsel" id="fDateRange">
       <option value="">All dates</option>
       <option value="today">Today</option>
@@ -264,6 +259,15 @@ tbody tr.rude-row:hover{background:#ffecec}
     </select>
     <input type="date" class="tsel" id="fDateFrom" style="display:none" />
     <input type="date" class="tsel" id="fDateTo" style="display:none" />
+  </div>
+
+  <!-- TOOLBAR -->
+  <div class="toolbar" id="toolbar" style="display:none">
+    <div class="search"><input type="text" id="search" placeholder="Search caller, phone, summary, transcript…" /></div>
+    <select class="tsel" id="fBooking"><option value="">All bookings</option><option>Booked</option><option>Not Booked</option></select>
+    <select class="tsel" id="fService"><option value="">Service &amp; non-service</option><option value="yes">Service calls</option><option value="no">Non-service</option></select>
+    <select class="tsel" id="fTone"><option value="">All agent tones</option><option>Friendly</option><option>Professional</option><option>Neutral</option><option>Curt</option><option>Rude</option><option value="flag">Rude or Curt</option><option>N/A</option></select>
+    <select class="tsel" id="fStatus"><option value="">All CallRail statuses</option></select>
     <span class="row-count" id="rowCount"></span>
     <div class="spacer"></div>
     <button class="btn" id="exportCsv" disabled>&#128190; Export CSV</button>
@@ -383,6 +387,7 @@ function handleFile(file){
       $("stats").style.display="grid";
       $("reasonsCard").style.display="block";
       $("toolbar").style.display="flex";
+      $("dateToolbar").style.display="flex";
       analyzeBtn.disabled=false; $("resetBtn").disabled=false;
       $("exportCsv").disabled=false; $("exportXlsx").disabled=false;
       toast(`Loaded ${rows.length} calls from ${file.name}`);
@@ -1722,10 +1727,10 @@ $("fDateRange").addEventListener("change",()=>{
   const isCustom=$("fDateRange").value==="custom";
   $("fDateFrom").style.display=isCustom?"":"none";
   $("fDateTo").style.display=isCustom?"":"none";
-  renderTable();
+  renderAll();
 });
-$("fDateFrom").addEventListener("change",renderTable);
-$("fDateTo").addEventListener("change",renderTable);
+$("fDateFrom").addEventListener("change",renderAll);
+$("fDateTo").addEventListener("change",renderAll);
 
 function renderAll(){ renderStats(); renderReasons(); renderTable(); }
 
@@ -1758,6 +1763,20 @@ function dateRangeBounds(preset,customFrom,customTo){
   }
 }
 
+// Calls within the active date-range filter only (independent of search/booking/tone/status/reason) —
+// used to scope the top stat cards and category counts to the selected range.
+function callsInDateRange(){
+  const bounds=dateRangeBounds($("fDateRange").value,$("fDateFrom").value,$("fDateTo").value);
+  if(!bounds) return CALLS;
+  return CALLS.filter(c=>{
+    const d=new Date(c.startTime);
+    if(isNaN(d)) return false;
+    if(bounds[0] && d<bounds[0]) return false;
+    if(bounds[1] && d>bounds[1]) return false;
+    return true;
+  });
+}
+
 function filtered(){
   const q=$("search").value.toLowerCase().trim();
   const fb=$("fBooking").value, fs=$("fService").value, fst=$("fStatus").value, ft=$("fTone").value;
@@ -1786,7 +1805,8 @@ function filtered(){
 }
 
 function renderStats(){
-  const analyzed=CALLS.filter(c=>c.analysis);
+  const scoped=callsInDateRange();
+  const analyzed=scoped.filter(c=>c.analysis);
   const service=analyzed.filter(c=>c.analysis.is_service_call);
   const booked=analyzed.filter(c=>c.analysis.booking_status==="Booked");
   const notBooked=analyzed.filter(c=>c.analysis.booking_status==="Not Booked");
@@ -1795,7 +1815,7 @@ function renderStats(){
   const curt=analyzed.filter(c=>c.analysis.agent_tone==="Curt");
   $("stRude").textContent=rude.length+curt.length;
   $("stRudeSub").textContent=`${rude.length} rude · ${curt.length} curt`;
-  $("stTotal").textContent=CALLS.length;
+  $("stTotal").textContent=scoped.length;
   $("stAnalyzed").textContent=analyzed.length+" analyzed";
   $("stService").textContent=service.length;
   $("stServicePct").textContent=analyzed.length?Math.round(service.length/analyzed.length*100)+"% of analyzed":"—";
@@ -1809,7 +1829,7 @@ function renderStats(){
 
 function renderReasons(){
   const counts={}; REASONS.forEach(r=>counts[r]=0);
-  CALLS.forEach(c=>{ if(c.analysis) counts[c.analysis.invalid_reason]=(counts[c.analysis.invalid_reason]||0)+1; });
+  callsInDateRange().forEach(c=>{ if(c.analysis) counts[c.analysis.invalid_reason]=(counts[c.analysis.invalid_reason]||0)+1; });
   const grid=$("reasonGrid");
   grid.innerHTML=REASONS.map(r=>{
     const active=activeReason===r?" active":"";
