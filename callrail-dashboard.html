@@ -1885,6 +1885,7 @@ function csvTime(s){
 }
 
 const EXPORT_COLS=[
+  ["Company Name","company"],
   ["Date",c=>csvDate(c.startTime)],
   ["Time",c=>csvTime(c.startTime)],
   ["DurationM",c=>fmtDur(c.duration)],
@@ -1897,7 +1898,8 @@ const EXPORT_COLS=[
   ["First time caller",c=>firstTimeLabel(c)],
   ["Call Type",c=>callTypeLabel(c)],
   ["Category / Reason",c=>c.analysis?c.analysis.invalid_reason:""],
-  ["Agent Tone",c=>c.analysis?c.analysis.agent_tone:""]
+  ["Agent Tone",c=>c.analysis?c.analysis.agent_tone:""],
+  ["Tracking Number",c=>fmtPhone(c.tracking)]
 ];
 
 function exportRows(){
