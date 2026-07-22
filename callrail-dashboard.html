@@ -231,11 +231,11 @@ tbody tr.rude-row:hover{background:#ffecec}
   <!-- STATS -->
   <div class="stats" id="stats" style="display:none">
     <div class="stat blue"><div class="stat-val" id="stTotal">0</div><div class="stat-label">Total Calls</div><div class="stat-sub" id="stAnalyzed">0 analyzed</div></div>
-    <div class="stat purple"><div class="stat-val" id="stService">0</div><div class="stat-label">Service Calls</div><div class="stat-sub" id="stServicePct">&mdash;</div></div>
+    <div class="stat green"><div class="stat-val" id="stValid">0</div><div class="stat-label">Valid Calls</div><div class="stat-sub" id="stValidPct">&mdash;</div></div>
+    <div class="stat orange"><div class="stat-val" id="stInvalid">0</div><div class="stat-label">Invalid Calls</div><div class="stat-sub" id="stInvalidPct">&mdash;</div></div>
     <div class="stat green"><div class="stat-val" id="stBooked">0</div><div class="stat-label">Booked</div><div class="stat-sub" id="stBookRate">&mdash;</div></div>
     <div class="stat red"><div class="stat-val" id="stNotBooked">0</div><div class="stat-label">Not Booked</div><div class="stat-sub">service calls w/o appt</div></div>
-    <div class="stat orange"><div class="stat-val" id="stValid">0</div><div class="stat-label">Valid Calls</div><div class="stat-sub" id="stValidPct">&mdash;</div></div>
-    <div class="stat red"><div class="stat-val" id="stRude">0</div><div class="stat-label">Rude / Curt Tone</div><div class="stat-sub" id="stRudeSub">agent tone flags</div></div>
+    <div class="stat red"><div class="stat-val" id="stRude">0</div><div class="stat-label">Tone</div><div class="stat-sub" id="stRudeSub">agent tone flags</div></div>
   </div>
 
   <div class="reasons" id="reasonsCard" style="display:none">
@@ -1807,24 +1807,24 @@ function filtered(){
 function renderStats(){
   const scoped=callsInDateRange();
   const analyzed=scoped.filter(c=>c.analysis);
-  const service=analyzed.filter(c=>c.analysis.is_service_call);
   const booked=analyzed.filter(c=>c.analysis.booking_status==="Booked");
   const notBooked=analyzed.filter(c=>c.analysis.booking_status==="Not Booked");
   const valid=analyzed.filter(c=>c.analysis.invalid_reason==="Valid Call");
+  const invalid=analyzed.filter(c=>c.analysis.invalid_reason!=="Valid Call");
   const rude=analyzed.filter(c=>c.analysis.agent_tone==="Rude");
   const curt=analyzed.filter(c=>c.analysis.agent_tone==="Curt");
   $("stRude").textContent=rude.length+curt.length;
   $("stRudeSub").textContent=`${rude.length} rude · ${curt.length} curt`;
   $("stTotal").textContent=scoped.length;
   $("stAnalyzed").textContent=analyzed.length+" analyzed";
-  $("stService").textContent=service.length;
-  $("stServicePct").textContent=analyzed.length?Math.round(service.length/analyzed.length*100)+"% of analyzed":"—";
   $("stBooked").textContent=booked.length;
   const bookable=booked.length+notBooked.length;
   $("stBookRate").textContent=bookable?Math.round(booked.length/bookable*100)+"% booking rate":"—";
   $("stNotBooked").textContent=notBooked.length;
   $("stValid").textContent=valid.length;
   $("stValidPct").textContent=analyzed.length?Math.round(valid.length/analyzed.length*100)+"% of analyzed":"—";
+  $("stInvalid").textContent=invalid.length;
+  $("stInvalidPct").textContent=analyzed.length?Math.round(invalid.length/analyzed.length*100)+"% of analyzed":"—";
 }
 
 function renderReasons(){
