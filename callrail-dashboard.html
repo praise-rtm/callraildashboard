@@ -1977,7 +1977,8 @@ const EXPORT_COLS=[
   ["Call Type",c=>callTypeLabel(c)],
   ["Category / Reason",c=>c.analysis?c.analysis.invalid_reason:""],
   ["Agent Tone",c=>c.analysis?c.analysis.agent_tone:""],
-  ["Tracking Number",c=>fmtPhone(c.tracking)]
+  ["Tracking Number",c=>fmtPhone(c.tracking)],
+  ["Recording Link","recording"]
 ];
 
 function exportRows(){
