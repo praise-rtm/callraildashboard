@@ -328,7 +328,7 @@ const TONE_CLASS = {"Friendly":"t-friendly","Professional":"t-pro","Neutral":"t-
 
 // Bump this version whenever classification logic changes, so stale cached results
 // from an older ruleset are discarded instead of silently reused.
-const LS_KEY = "callrail_analysis_v88";
+const LS_KEY = "callrail_analysis_v92";
 const LS_APIKEY = "callrail_api_key";
 const LS_MODEL = "callrail_model";
 
@@ -1263,6 +1263,11 @@ function classifyHeuristic(call){
   const t=(call.transcription||"").toLowerCase();
   const note=stripDispatcherTag(call.note||"").toLowerCase();
   const blob=stripIvrMenu(call.transcription).toLowerCase()+" "+note;
+  // Unstripped version of blob, for checks that must NOT lose content to the IVR-menu stripper — e.g. a
+  // robocall/scam script that itself contains 3+ "press N" prompts on one line ("press 2 to speak with...
+  // press 9 to opt out") is exactly the spam content being detected, not a business's own phone-tree
+  // greeting, so stripIvrMenu would wipe out the very text the spam check needs to see.
+  const rawBlob=(call.transcription||"").toLowerCase()+" "+note;
   const agentText=(call.transcription||"").split(/\n+/).filter(l=>/^agent\s*:/i.test(l)).join(" ").toLowerCase();
   const firstTime=/(^|[^a-z])(true|yes|1)([^a-z]|$)/.test((call.firstTime||"").toLowerCase());
   const isRepeat=/(^|[^a-z])(false|no|0)([^a-z]|$)/.test((call.firstTime||"").toLowerCase());
@@ -1384,12 +1389,26 @@ function classifyHeuristic(call){
   // Strong invalid signals that should win even over service keywords (require specific phrasing to avoid false positives).
   // NOTE: "warranty department" was removed — it's ordinary internal terminology at plenty of home-services
   // businesses (roofing/HVAC "warranty department" transfers), not a spam signal on its own.
-  // "press 1" / "press one" alone also false-positived on legitimate voicemail greetings ("press 1 for more
+  // A bare "press N" alone also false-positives on legitimate voicemail greetings ("press 1 for more
   // options"), so it only counts as spam when paired with the actual Google-listing-scam script wording.
-  const spam = has("verify your business","get verified","business verified","get your business verified","google listing",
+  // The digit varies by script variant ("press 2 immediately...", "press 9 to opt out"), so match any
+  // press-a-number prompt rather than just "press 1".
+  const hasRaw=(...ws)=>ws.some(w=>rawBlob.includes(w));
+  // Any "Google Business Profile" robocall/scam variant, matched broadly rather than by exact phrase —
+  // these scripts constantly reword themselves ("verify your listing" / "your profile isn't showing" /
+  // "your ranking has dropped" / "your account may be suspended") to dodge simple keyword filters, but
+  // they always combine a Google-listing/ranking/visibility claim with automated pressure language
+  // (verify/claim/suspended/flagged/press-a-number/opt-out/final notice/automated system).
+  // Every alternative below is wrapped with \b — without it, "ranking" matched inside "we're cranking"
+  // (a real Angie's-List-style lead-gen sales call), and "press" would match inside "impress"/"express".
+  const googleTopic=/\bgoogle\b/i.test(rawBlob) && /\b(?:business profile|listing|listings|ranking|rankings|maps|search results|search visibility|voice search|search engine)\b/i.test(rawBlob);
+  const scamPressure=/\b(?:verify|verification|claim your|update your|confirm your|not (?:showing|appearing|display(?:ing)?|correctly)|(?:listing|profile|account) (?:is|has been|may be) (?:suspended|flagged|removed|deactivated)|may be suspended|under audit|final notice|opt.?out|authorized representative|press (?:\d|one|two|three|four|five|six|seven|eight|nine)|redirect(?:ing)? you|this is not a sales call|automated (?:message|system|call))\b/i.test(rawBlob);
+  const googleRobocall=googleTopic && scamPressure;
+  const spam = hasRaw("verify your business","get verified","business verified","get your business verified","google listing",
     "google business profile listing","claim your listing","rank higher","search engine optimization","seo services",
     "vehicle's warranty","final notice","this is not a sales call","robocall")
-    || (has("press 1","press one") && has("trouble finding you","numerous searches","google voice","under audit and flagged"));
+    || (/press (?:one|two|three|four|five|six|seven|eight|nine|\d)\b/i.test(rawBlob) && hasRaw("trouble finding you","numerous searches","google voice","under audit and flagged","listing may be suspended","not appear in searches","opt out"))
+    || googleRobocall;
   const jobApp = has("job application","are you hiring","is anyone hiring","looking for a job","looking for work",
     "looking for employment","employment opportunity","apply for a position","apply for a job","submit my resume",
     "send my resume","seeking employment","any openings","are you guys hiring","you guys are hiring","job opening",
