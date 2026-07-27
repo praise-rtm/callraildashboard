@@ -328,7 +328,7 @@ const TONE_CLASS = {"Friendly":"t-friendly","Professional":"t-pro","Neutral":"t-
 
 // Bump this version whenever classification logic changes, so stale cached results
 // from an older ruleset are discarded instead of silently reused.
-const LS_KEY = "callrail_analysis_v94";
+const LS_KEY = "callrail_analysis_v95";
 const LS_APIKEY = "callrail_api_key";
 const LS_MODEL = "callrail_model";
 
@@ -1440,6 +1440,15 @@ function classifyHeuristic(call){
     "advertising decisions","advertising platforms","advertising opportunities","get new customers",
     "digital advertising","streaming tv","tv advertising","television advertising","broadcasting platform",
     "make advertising decisions","advertise with us","radio advertising","print advertising");
+  // Vendor/sales scouting call: caller asks for the OWNER specifically (a role, not a named person —
+  // distinct from askingForPerson below, which is about a genuine customer following up with a specific
+  // employee by name), is told the owner's unavailable, and instead of leaving an actual message just
+  // harvests the owner's first/last name and hangs up. A real customer leaving a message states why
+  // they're calling; a vendor scouting the decision-maker's name for a later pitch call never does.
+  const asksForOwnerRole=/\b(?:speak (?:to|with)|talk (?:to|with)|is)\s+(?:the\s+)?(?:business\s+)?owner\b|\bwho'?s\s+the\s+owner\b|\bwho\s+is\s+the\s+owner\b/i.test(callerText);
+  const harvestsOwnerName=/\b(?:his|her|their|the\s+(?:owner|gentleman|lady|manager)'?s?)\s+(?:first|last)\s+name\b|\bwhat'?s?\s+(?:his|her|their)\s+name\b/i.test(callerText);
+  const noStatedPurpose=!hasCaller("regarding","because","i'm calling about","i'm calling regarding","i'm calling for","service","repair","quote","estimate","leak","drain","clog","appointment","schedule","invoice","billing","account","complaint","issue with","problem with");
+  const ownerScoutingCall=asksForOwnerRole && harvestsOwnerName && noStatedPurpose;
   // "i have the wrong"/"must have the wrong" require a completion naming what's wrong (number/company/
   // business/place) — bare "I have the wrong ___" also matches a caller mixing up a CALLBACK phone
   // number's digits ("maybe I have the wrong one now" while reading off a number to text photos to),
@@ -1492,7 +1501,7 @@ function classifyHeuristic(call){
   // meet") can trip the generic "schedule"/"appointment" service-signal keywords, which used to make
   // isService true and skip this check entirely — a strong, specific marketing-keyword match should win
   // regardless of that.
-  if(marketing) return normalize({summary,is_service_call:false,booking_status:"N/A",invalid_reason:"Marketing",confidence:"Low",engine:"heuristic"},call);
+  if(marketing || ownerScoutingCall) return normalize({summary,is_service_call:false,booking_status:"N/A",invalid_reason:"Marketing",confidence:"Low",engine:"heuristic"},call);
 
   // "Voicemail" means the caller actually reached a voicemail box and (potentially) left a message —
   // unlike Missed/Abandoned there is real caller content to judge. A message that requests service
