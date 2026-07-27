@@ -268,6 +268,7 @@ tbody tr.rude-row:hover{background:#ffecec}
     <select class="tsel" id="fService"><option value="">Service &amp; non-service</option><option value="yes">Service calls</option><option value="no">Non-service</option></select>
     <select class="tsel" id="fTone"><option value="">All agent tones</option><option>Friendly</option><option>Professional</option><option>Neutral</option><option>Curt</option><option>Rude</option><option value="flag">Rude or Curt</option><option>N/A</option></select>
     <select class="tsel" id="fStatus"><option value="">All CallRail statuses</option></select>
+    <select class="tsel" id="fCompany"><option value="">All companies</option></select>
     <span class="row-count" id="rowCount"></span>
     <div class="spacer"></div>
     <button class="btn" id="exportCsv" disabled>&#128190; Export CSV</button>
@@ -335,7 +336,7 @@ const LS_MODEL = "callrail_model";
 let CALLS = [];          // parsed rows {raw fields..., key, analysis}
 let ANALYSIS = loadCache(); // key -> {summary,is_service_call,booking_status,invalid_reason,confidence,engine}
 let running = false, stopFlag = false;
-let activeReason = "";
+let activeReasons = new Set(); // multi-select: matches ANY selected category (OR logic)
 
 /* ---------- element refs ---------- */
 const $ = id => document.getElementById(id);
@@ -383,6 +384,7 @@ function handleFile(file){
       if(!rows.length){ toast("No call rows with a recognizable header found.",true); return; }
       CALLS=rows;
       buildStatusFilter();
+      buildCompanyFilter();
       renderAll();
       $("stats").style.display="grid";
       $("reasonsCard").style.display="block";
@@ -465,6 +467,11 @@ function buildStatusFilter(){
   const sel=$("fStatus");
   const set=[...new Set(CALLS.map(c=>c.status).filter(Boolean))].sort();
   sel.innerHTML='<option value="">All CallRail statuses</option>'+set.map(s=>`<option>${esc(s)}</option>`).join("");
+}
+function buildCompanyFilter(){
+  const sel=$("fCompany");
+  const set=[...new Set(CALLS.map(c=>c.company).filter(Boolean))].sort();
+  sel.innerHTML='<option value="">All companies</option>'+set.map(s=>`<option>${esc(s)}</option>`).join("");
 }
 
 /* ============================================================
@@ -1772,6 +1779,7 @@ $("fBooking").addEventListener("change",renderTable);
 $("fService").addEventListener("change",renderTable);
 $("fTone").addEventListener("change",renderTable);
 $("fStatus").addEventListener("change",renderTable);
+$("fCompany").addEventListener("change",renderTable);
 $("fDateRange").addEventListener("change",()=>{
   const isCustom=$("fDateRange").value==="custom";
   $("fDateFrom").style.display=isCustom?"":"none";
@@ -1828,17 +1836,18 @@ function callsInDateRange(){
 
 function filtered(){
   const q=$("search").value.toLowerCase().trim();
-  const fb=$("fBooking").value, fs=$("fService").value, fst=$("fStatus").value, ft=$("fTone").value;
+  const fb=$("fBooking").value, fs=$("fService").value, fst=$("fStatus").value, ft=$("fTone").value, fco=$("fCompany").value;
   const bounds=dateRangeBounds($("fDateRange").value,$("fDateFrom").value,$("fDateTo").value);
   return CALLS.filter(c=>{
     const a=c.analysis;
-    if(activeReason && (!a || a.invalid_reason!==activeReason)) return false;
+    if(activeReasons.size && (!a || !activeReasons.has(a.invalid_reason))) return false;
     if(fb && (!a || a.booking_status!==fb)) return false;
     if(fs==="yes" && (!a || !a.is_service_call)) return false;
     if(fs==="no" && (a && a.is_service_call)) return false;
     if(ft==="flag" && (!a || !["Rude","Curt"].includes(a.agent_tone))) return false;
     if(ft && ft!=="flag" && (!a || a.agent_tone!==ft)) return false;
     if(fst && c.status!==fst) return false;
+    if(fco && c.company!==fco) return false;
     if(bounds){
       const d=new Date(c.startTime);
       if(isNaN(d)) return false;
@@ -1884,12 +1893,13 @@ function renderReasons(){
   callsInDateRange().forEach(c=>{ if(c.analysis) counts[c.analysis.invalid_reason]=(counts[c.analysis.invalid_reason]||0)+1; });
   const grid=$("reasonGrid");
   grid.innerHTML=REASONS.map(r=>{
-    const active=activeReason===r?" active":"";
+    const active=activeReasons.has(r)?" active":"";
     return `<div class="reason-pill${active}" data-r="${esc(r)}">
       <span class="reason-dot" style="background:${REASON_COLORS[r]}"></span>${esc(r)} <b>${counts[r]||0}</b></div>`;
   }).join("");
   grid.querySelectorAll(".reason-pill").forEach(p=>p.addEventListener("click",()=>{
-    activeReason = activeReason===p.dataset.r ? "" : p.dataset.r;
+    if(activeReasons.has(p.dataset.r)) activeReasons.delete(p.dataset.r);
+    else activeReasons.add(p.dataset.r);
     renderReasons(); renderTable();
   }));
 }
