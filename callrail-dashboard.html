@@ -328,7 +328,7 @@ const TONE_CLASS = {"Friendly":"t-friendly","Professional":"t-pro","Neutral":"t-
 
 // Bump this version whenever classification logic changes, so stale cached results
 // from an older ruleset are discarded instead of silently reused.
-const LS_KEY = "callrail_analysis_v92";
+const LS_KEY = "callrail_analysis_v93";
 const LS_APIKEY = "callrail_api_key";
 const LS_MODEL = "callrail_model";
 
@@ -1475,6 +1475,14 @@ function classifyHeuristic(call){
   // voicemail message) — deliberately ignore the `booked` signal here and always resolve to Disconnected.
   if(!callerText.trim() && agentText.trim())
     return normalize({summary,is_service_call:false,booking_status:"Not Booked",invalid_reason:"Disconnected",confidence:"Medium",engine:"heuristic"},call);
+  // Mirror case: the caller side has SOME transcribed content, but the agent has NO turns at all — not
+  // even a greeting. That means the call never actually reached the business's system, let alone a real
+  // conversation. Overrides the isService cascade below: a garbled/foreign-language or corrupted caller
+  // transcription can spuriously contain the business's own name/keywords (e.g. picking up bleed from a
+  // greeting that never rendered as its own "Agent:" line), which would otherwise misread this as a real
+  // service call. A dispatcher note describing a short ring-then-hangup is the norm for this pattern.
+  if(callerText.trim() && !agentText.trim())
+    return normalize({summary,is_service_call:false,booking_status:"Not Booked",invalid_reason:"Disconnected",confidence:"Medium",engine:"heuristic"},call);
 
   if(agencyQA)  return normalize({summary,is_service_call:false,booking_status:"N/A",invalid_reason:"Marketing",confidence:"Medium",engine:"heuristic"},call);
   if(spam)     return normalize({summary,is_service_call:false,booking_status:"N/A",invalid_reason:"Spam",confidence:"Medium",engine:"heuristic"},call);
@@ -1517,8 +1525,13 @@ function classifyHeuristic(call){
     && !/(different|another) (company|provider|business)/i.test(agentText);
   // A decline that's just one sub-detail of a call that goes on to actually book ("we don't carry that
   // BRAND, but here's one we do have" -> booked) is not a wrong-business match at all — only a decline
-  // where nothing gets booked afterward counts.
-  if(declines.test(agentText) && !internalTransfer && !bookingConfirmed && !(bookingOffered && callerAgreed))
+  // where nothing gets booked afterward counts. Deliberately requires the strong bookingConfirmed signal
+  // specifically, NOT the weaker bookingOffered&&callerAgreed: a caller's ordinary "perfect, thank you"
+  // after receiving a REFERRAL to a different company (e.g. water damage remediation) is just politeness,
+  // not acceptance of a booking — callerAgreed's generic "perfect"/"thank you"/"okay" phrases will match
+  // that closing regardless, so treating it as proof of a real booking wrongly suppressed a genuine
+  // Incorrect Business call that never actually converted.
+  if(declines.test(agentText) && !internalTransfer && !bookingConfirmed)
     return normalize({summary,is_service_call:false,booking_status:"N/A",invalid_reason:"Incorrect Business",confidence:"Medium",engine:"heuristic"},call);
   // Detect a caller asking for a specific PERSON (not the business's services) about a matter unrelated
   // to what the business offers. If the call reaches a natural conclusion (agent takes the message,
@@ -1828,8 +1841,11 @@ function renderStats(){
   const analyzed=scoped.filter(c=>c.analysis);
   const booked=analyzed.filter(c=>c.analysis.booking_status==="Booked");
   const notBooked=analyzed.filter(c=>c.analysis.booking_status==="Not Booked");
-  const valid=analyzed.filter(c=>c.analysis.invalid_reason==="Valid Call");
-  const invalid=analyzed.filter(c=>c.analysis.invalid_reason!=="Valid Call");
+  // Matches the same Valid/Invalid split used by the table's Call Type badge and the export column
+  // (VALID_CALL_TYPES) — "Not Available" and "Cancelled" are genuine business interactions that just
+  // didn't book, not the same kind of "invalid" as spam/wrong number/job application/etc.
+  const valid=analyzed.filter(c=>VALID_CALL_TYPES.has(c.analysis.invalid_reason));
+  const invalid=analyzed.filter(c=>!VALID_CALL_TYPES.has(c.analysis.invalid_reason));
   const rude=analyzed.filter(c=>c.analysis.agent_tone==="Rude");
   const curt=analyzed.filter(c=>c.analysis.agent_tone==="Curt");
   $("stRude").textContent=rude.length+curt.length;
