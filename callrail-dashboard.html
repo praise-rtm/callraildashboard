@@ -329,7 +329,7 @@ const TONE_CLASS = {"Friendly":"t-friendly","Professional":"t-pro","Neutral":"t-
 
 // Bump this version whenever classification logic changes, so stale cached results
 // from an older ruleset are discarded instead of silently reused.
-const LS_KEY = "callrail_analysis_v97";
+const LS_KEY = "callrail_analysis_v99";
 const LS_APIKEY = "callrail_api_key";
 const LS_MODEL = "callrail_model";
 
@@ -1547,6 +1547,17 @@ function classifyHeuristic(call){
   const declines=/(we don'?t (do|service|offer|handle|work on|cover|deal with)|we only (do|service|offer|handle)|that'?s not something we (do|offer|handle)|we don'?t provide|not a service (we|that we)|we don'?t (really )?(do|handle) (that|those)|(outside|out of) (?:our|the) (?:service |coverage )?(?:area|zone|range)|not in (?:our|the) (?:service )?area|don'?t (?:go|travel|service|cover) (?:that far|out (?:that|there)|to (?:that|your) area)|not (?:licensed|able to (?:go|work|operate)) (?:in|out(?:side)? of) (?:that|your) area|too far (?:for us|outside (?:of )?our (?:area|range)|out of our (?:area|range))|don'?t have (?:anyone|coverage|a tech(?:nician)?|service) (?:in|for) (?:that|your) area)/;
   const internalTransfer=/\b(department|dept\.?|extension|ext\.?|billing|scheduling|dispatch)\b/i.test(agentText)
     && !/(different|another) (company|provider|business)/i.test(agentText);
+  // Natural speech often elides the repeated verb: caller asks "do you guys SERVICE Hartwell, Georgia?"
+  // and the agent just replies "we don't" without restating "service" — declines above requires the verb
+  // to literally follow "we don't" in the agent's OWN text, so it misses this common elliptical pattern.
+  // Catching the caller's yes/no coverage/service question paired with a bare agent negative generalizes
+  // beyond location too — the same ellipsis happens for "do you service tankless water heaters?" / "we don't."
+  const askedYesNoService=/\b(?:do|does|can|could)\s+(?:you|y'?all|you guys)\s+(?:service|cover|serve|come out to|go out to|work in|go to|do)\b/i.test(callerText);
+  // Requires "we don't" to stand alone as a complete negative answer (immediately followed by sentence-
+  // ending punctuation), NOT embedded in a hedge like "we don't USUALLY do same day, but I can fit you in
+  // this afternoon" — that's a caveat leading into an actual offer, not a flat decline.
+  const bareNegativeReply=/\bwe don'?t\s*[.,!]|\bwe do not\s*[.,!]|\bno,?\s+we don'?t\s*[.,!]|\bunfortunately,?\s+we don'?t\s*[.,!]/i.test(agentText);
+  const elidedDecline=askedYesNoService && bareNegativeReply;
   // A decline that's just one sub-detail of a call that goes on to actually book ("we don't carry that
   // BRAND, but here's one we do have" -> booked) is not a wrong-business match at all — only a decline
   // where nothing gets booked afterward counts. Deliberately requires the strong bookingConfirmed signal
@@ -1555,7 +1566,7 @@ function classifyHeuristic(call){
   // not acceptance of a booking — callerAgreed's generic "perfect"/"thank you"/"okay" phrases will match
   // that closing regardless, so treating it as proof of a real booking wrongly suppressed a genuine
   // Incorrect Business call that never actually converted.
-  if(declines.test(agentText) && !internalTransfer && !bookingConfirmed)
+  if((declines.test(agentText) || elidedDecline) && !internalTransfer && !bookingConfirmed)
     return normalize({summary,is_service_call:false,booking_status:"N/A",invalid_reason:"Incorrect Business",confidence:"Medium",engine:"heuristic"},call);
   // Detect a caller asking for a specific PERSON (not the business's services) about a matter unrelated
   // to what the business offers. If the call reaches a natural conclusion (agent takes the message,
