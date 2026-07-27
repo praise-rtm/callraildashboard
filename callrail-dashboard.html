@@ -328,7 +328,7 @@ const TONE_CLASS = {"Friendly":"t-friendly","Professional":"t-pro","Neutral":"t-
 
 // Bump this version whenever classification logic changes, so stale cached results
 // from an older ruleset are discarded instead of silently reused.
-const LS_KEY = "callrail_analysis_v93";
+const LS_KEY = "callrail_analysis_v94";
 const LS_APIKEY = "callrail_api_key";
 const LS_MODEL = "callrail_model";
 
@@ -1520,7 +1520,10 @@ function classifyHeuristic(call){
   // or not. "Elsewhere" (when present) must mean a DIFFERENT company — an internal transfer to another
   // department of THIS SAME business (e.g. "let me transfer you to our billing department") is routine
   // handling of an existing customer's request, not evidence the caller reached the wrong business.
-  const declines=/(we don'?t (do|service|offer|handle|work on|cover|deal with)|we only (do|service|offer|handle)|that'?s not something we (do|offer|handle)|we don'?t provide|not a service (we|that we)|we don'?t (really )?(do|handle) (that|those))/;
+  // Also covers the business being unable to serve the CALLER'S LOCATION, not just their requested
+  // service — "you're outside our service area" is the same wrong-business match as "we don't do that,"
+  // just declined for geography instead of trade/service type.
+  const declines=/(we don'?t (do|service|offer|handle|work on|cover|deal with)|we only (do|service|offer|handle)|that'?s not something we (do|offer|handle)|we don'?t provide|not a service (we|that we)|we don'?t (really )?(do|handle) (that|those)|(outside|out of) (?:our|the) (?:service |coverage )?(?:area|zone|range)|not in (?:our|the) (?:service )?area|don'?t (?:go|travel|service|cover) (?:that far|out (?:that|there)|to (?:that|your) area)|not (?:licensed|able to (?:go|work|operate)) (?:in|out(?:side)? of) (?:that|your) area|too far (?:for us|outside (?:of )?our (?:area|range)|out of our (?:area|range))|don'?t have (?:anyone|coverage|a tech(?:nician)?|service) (?:in|for) (?:that|your) area)/;
   const internalTransfer=/\b(department|dept\.?|extension|ext\.?|billing|scheduling|dispatch)\b/i.test(agentText)
     && !/(different|another) (company|provider|business)/i.test(agentText);
   // A decline that's just one sub-detail of a call that goes on to actually book ("we don't carry that
