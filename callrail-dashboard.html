@@ -329,7 +329,7 @@ const TONE_CLASS = {"Friendly":"t-friendly","Professional":"t-pro","Neutral":"t-
 
 // Bump this version whenever classification logic changes, so stale cached results
 // from an older ruleset are discarded instead of silently reused.
-const LS_KEY = "callrail_analysis_v102";
+const LS_KEY = "callrail_analysis_v103";
 const LS_APIKEY = "callrail_api_key";
 const LS_MODEL = "callrail_model";
 
@@ -1567,6 +1567,11 @@ function classifyHeuristic(call){
   // this afternoon" — that's a caveat leading into an actual offer, not a flat decline.
   const bareNegativeReply=/\bwe don'?t\s*[.,!]|\bwe do not\s*[.,!]|\bno,?\s+we don'?t\s*[.,!]|\bunfortunately,?\s+we don'?t\s*[.,!]/i.test(agentText);
   const elidedDecline=askedYesNoService && bareNegativeReply;
+  // "We don't provide pricing/quotes over the phone" is a business POLICY about how quotes are given
+  // (an in-person/on-site assessment is required first) — not a decline of the service or area at all.
+  // The bare "we don'?t provide" alternative in declines below would otherwise match this literally,
+  // even on a call where the business explicitly confirmed they DO service the request and location.
+  const pricingPolicyDecline=/(?:we|i) don'?t (?:provide|give|quote|do) (?:any |you )?(?:a )?(?:price|pricing|quotes?|estimates?) over the phone|can'?t (?:give|provide|quote) (?:you )?(?:a )?(?:price|pricing|quote|estimate) over the phone/i.test(agentText);
   // A decline that's just one sub-detail of a call that goes on to actually book ("we don't carry that
   // BRAND, but here's one we do have" -> booked) is not a wrong-business match at all — only a decline
   // where nothing gets booked afterward counts. Deliberately requires the strong bookingConfirmed signal
@@ -1575,7 +1580,7 @@ function classifyHeuristic(call){
   // not acceptance of a booking — callerAgreed's generic "perfect"/"thank you"/"okay" phrases will match
   // that closing regardless, so treating it as proof of a real booking wrongly suppressed a genuine
   // Incorrect Business call that never actually converted.
-  if((declines.test(agentText) || elidedDecline) && !internalTransfer && !bookingConfirmed)
+  if((declines.test(agentText) || elidedDecline) && !internalTransfer && !bookingConfirmed && !pricingPolicyDecline)
     return normalize({summary,is_service_call:false,booking_status:"N/A",invalid_reason:"Incorrect Business",confidence:"Medium",engine:"heuristic"},call);
   // Detect a caller asking for a specific PERSON (not the business's services) about a matter unrelated
   // to what the business offers. If the call reaches a natural conclusion (agent takes the message,
