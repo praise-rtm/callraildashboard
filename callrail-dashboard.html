@@ -329,7 +329,7 @@ const TONE_CLASS = {"Friendly":"t-friendly","Professional":"t-pro","Neutral":"t-
 
 // Bump this version whenever classification logic changes, so stale cached results
 // from an older ruleset are discarded instead of silently reused.
-const LS_KEY = "callrail_analysis_v99";
+const LS_KEY = "callrail_analysis_v101";
 const LS_APIKEY = "callrail_api_key";
 const LS_MODEL = "callrail_model";
 
@@ -1424,7 +1424,11 @@ function classifyHeuristic(call){
   // an agent who recognizes a vendor/marketing call often hangs up within a few seconds, so the transcript
   // is usually cut short before it ever reaches a phrase like "lower your rate"; without these earlier
   // opener phrases such a call falls through to the generic "Disconnected" catch-all instead of "Marketing".
-  const marketing = has("calling on behalf of","offer you a","we can help you get more","merchant services",
+  // Deliberately NOT bare "calling on behalf of" — a genuine proxy caller (a nanny calling for her
+  // employers, an assistant, an adult child calling for a parent) uses that exact same generic phrasing
+  // for a totally legitimate service call; it's only a marketing signal when paired with actual vendor
+  // pitch language, which the rest of this list already covers.
+  const marketing = has("offer you a","we can help you get more","merchant services",
     "credit card processing","lower your rate","business loan","funding for your business","list your business",
     "advertising opportunity","partner with","wholesale pricing","become a vendor","supplier of",
     "digital marketing","web design","website design","seo services","search engine optimization",
@@ -1544,7 +1548,11 @@ function classifyHeuristic(call){
   // Also covers the business being unable to serve the CALLER'S LOCATION, not just their requested
   // service — "you're outside our service area" is the same wrong-business match as "we don't do that,"
   // just declined for geography instead of trade/service type.
-  const declines=/(we don'?t (do|service|offer|handle|work on|cover|deal with)|we only (do|service|offer|handle)|that'?s not something we (do|offer|handle)|we don'?t provide|not a service (we|that we)|we don'?t (really )?(do|handle) (that|those)|(outside|out of) (?:our|the) (?:service |coverage )?(?:area|zone|range)|not in (?:our|the) (?:service )?area|don'?t (?:go|travel|service|cover) (?:that far|out (?:that|there)|to (?:that|your) area)|not (?:licensed|able to (?:go|work|operate)) (?:in|out(?:side)? of) (?:that|your) area|too far (?:for us|outside (?:of )?our (?:area|range)|out of our (?:area|range))|don'?t have (?:anyone|coverage|a tech(?:nician)?|service) (?:in|for) (?:that|your) area)/;
+  // Also covers a TRADE mismatch phrased as a comparison rather than a flat "we don't" — an agent saying
+  // an issue "sounds like more of an appliance issue than something on our end" is declining just as much
+  // as "we don't do appliances," just softer/hedged phrasing (common when the agent is being diplomatic
+  // about a customer's honest, good-faith mistake in which trade they needed).
+  const declines=/(we don'?t (do|service|offer|handle|work on|cover|deal with)|we only (do|service|offer|handle)|that'?s not something we (do|offer|handle)|we don'?t provide|not a service (we|that we)|we don'?t (really )?(do|handle) (that|those)|(outside|out of) (?:our|the) (?:service |coverage )?(?:area|zone|range)|not in (?:our|the) (?:service )?area|don'?t (?:go|travel|service|cover) (?:that far|out (?:that|there)|to (?:that|your) area)|not (?:licensed|able to (?:go|work|operate)) (?:in|out(?:side)? of) (?:that|your) area|too far (?:for us|outside (?:of )?our (?:area|range)|out of our (?:area|range))|don'?t have (?:anyone|coverage|a tech(?:nician)?|service) (?:in|for) (?:that|your) area|more of an? [a-z\s]{0,25}(?:issue|problem) than (?:something )?(?:on our end|we (?:do|handle|could|can)))/;
   const internalTransfer=/\b(department|dept\.?|extension|ext\.?|billing|scheduling|dispatch)\b/i.test(agentText)
     && !/(different|another) (company|provider|business)/i.test(agentText);
   // Natural speech often elides the repeated verb: caller asks "do you guys SERVICE Hartwell, Georgia?"
