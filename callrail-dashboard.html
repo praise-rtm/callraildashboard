@@ -332,7 +332,7 @@ const TONE_CLASS = {"Friendly":"t-friendly","Professional":"t-pro","Neutral":"t-
 
 // Bump this version whenever classification logic changes, so stale cached results
 // from an older ruleset are discarded instead of silently reused.
-const LS_KEY = "callrail_analysis_v106";
+const LS_KEY = "callrail_analysis_v108";
 const LS_APIKEY = "callrail_api_key";
 const LS_MODEL = "callrail_model";
 
@@ -1425,9 +1425,11 @@ function classifyHeuristic(call){
     "vehicle's warranty","final notice","this is not a sales call","robocall")
     || (/press (?:one|two|three|four|five|six|seven|eight|nine|\d)\b/i.test(rawBlob) && hasRaw("trouble finding you","numerous searches","google voice","under audit and flagged","listing may be suspended","not appear in searches","opt out"))
     || googleRobocall;
+  // "any openings" (bare) was removed — a genuine customer asking about SCHEDULE openings ("any openings
+  // for Monday morning?") matched it just as well as a job seeker asking about employment openings.
   const jobApp = has("job application","are you hiring","is anyone hiring","looking for a job","looking for work",
     "looking for employment","employment opportunity","apply for a position","apply for a job","submit my resume",
-    "send my resume","seeking employment","any openings","are you guys hiring","you guys are hiring","job opening",
+    "send my resume","seeking employment","any job openings","are you guys hiring","you guys are hiring","job opening",
     "hiring any","hiring apprentices","hiring plumbers","hiring technicians","hiring drivers");
   // Includes common vendor/marketing cold-call openers, not just the fully-developed pitch phrases below —
   // an agent who recognizes a vendor/marketing call often hangs up within a few seconds, so the transcript
@@ -1578,9 +1580,13 @@ function classifyHeuristic(call){
   const elidedDecline=askedYesNoService && bareNegativeReply;
   // "We don't provide pricing/quotes over the phone" is a business POLICY about how quotes are given
   // (an in-person/on-site assessment is required first) — not a decline of the service or area at all.
-  // The bare "we don'?t provide" alternative in declines below would otherwise match this literally,
-  // even on a call where the business explicitly confirmed they DO service the request and location.
-  const pricingPolicyDecline=/(?:we|i) don'?t (?:provide|give|quote|do) (?:any |you )?(?:a )?(?:price|pricing|quotes?|estimates?) over the phone|can'?t (?:give|provide|quote) (?:you )?(?:a )?(?:price|pricing|quote|estimate) over the phone/i.test(agentText);
+  // The bare "we don'?t provide"/"we don'?t do" alternatives in declines below would otherwise match this
+  // literally, even on a call where the business explicitly confirmed they DO service the request and
+  // location. Matched broadly (any price/quote/estimate mention near "over the phone") rather than one
+  // exact phrase — real calls phrase this as "they don't like giving pricing over the phone... we don't
+  // do that", where "we don't do that" is a vague back-reference to the PRECEDING sentence, not a literal
+  // "we don't do pricing" phrase a narrower regex would need.
+  const pricingPolicyDecline=/(price|pricing|quote|estimate|cost)[^.]{0,40}over the phone|over the phone[^.]{0,40}(price|pricing|quote|estimate|cost)/i.test(agentText);
   // A decline that's just one sub-detail of a call that goes on to actually book ("we don't carry that
   // BRAND, but here's one we do have" -> booked) is not a wrong-business match at all — only a decline
   // where nothing gets booked afterward counts. Deliberately requires the strong bookingConfirmed signal
@@ -1682,7 +1688,12 @@ function classifyHeuristic(call){
     // Agent offered to book AND the caller agreed → booked. Not when the caller defers/will call back
     // herself instead — a loose "committed"-word hit (e.g. "he'd callback tomorrow and set it up [himself]")
     // describes a FUTURE self-initiated action, not a present agreement to what the agent just offered.
-    if(bookingOffered && callerAgreed && !callerDefers)
+    // Also not when pricingPolicyDecline fires: "I'd need to schedule you with a tech so WE CAN COME out
+    // on site [to give you a price]" is explaining their pricing PROCESS, not offering a real appointment
+    // slot — bookingOffered's "we can come" matches that incidentally, and callerAgreed's bare "yes"/"yeah"
+    // matches ordinary filler words (an opening "yes" answering "how can I help", a "yeah" right before
+    // declining), not actual agreement to book.
+    if(bookingOffered && callerAgreed && !callerDefers && !pricingPolicyDecline)
       return normalize({summary,is_service_call:true,booking_status:"Booked",invalid_reason:"Valid Call",confidence:"Medium",engine:"heuristic"},call);
     // Agent had no same-day availability and nothing booked.
     if(noSameDay)
