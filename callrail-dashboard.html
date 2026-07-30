@@ -324,12 +324,15 @@ const REASON_COLORS = {
   "Incorrect Business":"#0ea5e9","Job Application":"#14b8a6","Marketing":"#f97316",
   "Spam":"#dc2626","Wrong Number":"#a855f7"
 };
+// Phone numbers (any format — matched on the last 10 digits) that should ALWAYS be tagged Marketing,
+// regardless of call content — known recurring vendor/robocall numbers reported by the user.
+const KNOWN_MARKETING_NUMBERS = new Set(["8885097996"]);
 const TONES = ["Friendly","Professional","Neutral","Curt","Rude","N/A"];
 const TONE_CLASS = {"Friendly":"t-friendly","Professional":"t-pro","Neutral":"t-neutral","Curt":"t-curt","Rude":"t-rude","N/A":"t-na"};
 
 // Bump this version whenever classification logic changes, so stale cached results
 // from an older ruleset are discarded instead of silently reused.
-const LS_KEY = "callrail_analysis_v103";
+const LS_KEY = "callrail_analysis_v106";
 const LS_APIKEY = "callrail_api_key";
 const LS_MODEL = "callrail_model";
 
@@ -1266,6 +1269,10 @@ function stripIvrMenu(text){
 }
 
 function classifyHeuristic(call){
+  // Known recurring marketing/vendor number — always Marketing regardless of call content, checked
+  // before anything else so it can't be overridden by a status-driven rule (Abandoned/Missed) either.
+  if(KNOWN_MARKETING_NUMBERS.has(String(call.phone||"").replace(/\D/g,"").slice(-10)))
+    return normalize({summary:"Recurring marketing/vendor call from a known number.",is_service_call:false,booking_status:"N/A",invalid_reason:"Marketing",confidence:"High",engine:"heuristic"},call);
   const status=(call.status||"").toLowerCase();
   const t=(call.transcription||"").toLowerCase();
   const note=stripDispatcherTag(call.note||"").toLowerCase();
@@ -1390,8 +1397,10 @@ function classifyHeuristic(call){
   // a genuine Not Available outcome, distinct from shopping around for a better price elsewhere.
   const declinedForAvailability=/(window|time frame|timeframe|that time|that window) (is )?too (broad|wide|long)|too (broad|wide) (a |of a )?(window|time)|too far out|can'?t wait that long|need (someone|somebody) sooner/i.test(blob);
   const declinedSchedule=declinedForAlternative||declinedForAvailability;
-  // Agent explicitly could NOT serve the caller within the day.
-  const noSameDay=/(can'?t|cannot|won'?t be able to|not able to|unable to)[^.]{0,22}(today|same day|this afternoon)|no (availability|openings?|slots?)[^.]{0,15}today|(booked|full|fully booked|all booked)[^.]{0,15}today|nothing (available|open)[^.]{0,15}today/i.test(blob);
+  // Agent explicitly could NOT serve the caller within the day. Also covers "soonest I'd have available
+  // would be Friday" style phrasing — naming a future day as the earliest option is the same no-same-day
+  // signal as "can't do it today", just phrased as what IS available rather than what isn't.
+  const noSameDay=/(can'?t|cannot|won'?t be able to|not able to|unable to)[^.]{0,22}(today|same day|this afternoon)|no (availability|openings?|slots?)[^.]{0,15}today|(booked|full|fully booked|all booked)[^.]{0,15}today|nothing (available|open)[^.]{0,15}today|soonest[^.]{0,70}(?:would be|is|on) (?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|next week|tomorrow)/i.test(blob);
 
   // Strong invalid signals that should win even over service keywords (require specific phrasing to avoid false positives).
   // NOTE: "warranty department" was removed — it's ordinary internal terminology at plenty of home-services
@@ -1580,7 +1589,12 @@ function classifyHeuristic(call){
   // not acceptance of a booking — callerAgreed's generic "perfect"/"thank you"/"okay" phrases will match
   // that closing regardless, so treating it as proof of a real booking wrongly suppressed a genuine
   // Incorrect Business call that never actually converted.
-  if((declines.test(agentText) || elidedDecline) && !internalTransfer && !bookingConfirmed && !pricingPolicyDecline)
+  // Also excluded when noSameDay fires: an agent's momentary "we don't work on septic tanks" before the
+  // caller clarifies it's actually a clogged drain line (not septic), followed by a real scheduling/
+  // availability discussion for the ACTUAL issue ("soonest I'd have available would be Friday"), means
+  // the earlier decline was just a clarifying misunderstanding, not the call's real outcome — this is a
+  // scheduling decline (Not Available), not a wrong-business one.
+  if((declines.test(agentText) || elidedDecline) && !internalTransfer && !bookingConfirmed && !pricingPolicyDecline && !noSameDay)
     return normalize({summary,is_service_call:false,booking_status:"N/A",invalid_reason:"Incorrect Business",confidence:"Medium",engine:"heuristic"},call);
   // Detect a caller asking for a specific PERSON (not the business's services) about a matter unrelated
   // to what the business offers. If the call reaches a natural conclusion (agent takes the message,
@@ -1718,9 +1732,13 @@ function heuristicSummary(txt){
 /* apply deterministic overrides + guardrails */
 function normalize(a, call){
   const status=(call.status||"").toLowerCase();
-  // hard status overrides
-  if(status.includes("abandon")){ a.invalid_reason="Abandoned"; a.is_service_call=false; a.booking_status="Not Booked"; }
-  else if(status.includes("missed")){ a.invalid_reason="Missed"; a.is_service_call=false; a.booking_status="Not Booked"; }
+  const isKnownMarketingNumber=KNOWN_MARKETING_NUMBERS.has(String(call.phone||"").replace(/\D/g,"").slice(-10));
+  // hard status overrides — skipped for a known recurring marketing/vendor number, which should read as
+  // Marketing even if CallRail's own status says Abandoned/Missed (the caller hung up before anyone
+  // answered, but it's still that same vendor's call attempt, not an unknown missed lead).
+  if(status.includes("abandon") && !isKnownMarketingNumber){ a.invalid_reason="Abandoned"; a.is_service_call=false; a.booking_status="Not Booked"; }
+  else if(status.includes("missed") && !isKnownMarketingNumber){ a.invalid_reason="Missed"; a.is_service_call=false; a.booking_status="Not Booked"; }
+  else if(isKnownMarketingNumber){ a.invalid_reason="Marketing"; a.is_service_call=false; a.booking_status="N/A"; }
   // consistency guards
   if(!REASONS.includes(a.invalid_reason)) a.invalid_reason="Valid Call";
   if(!["Booked","Not Booked","N/A"].includes(a.booking_status)) a.booking_status="N/A";
