@@ -332,7 +332,7 @@ const TONE_CLASS = {"Friendly":"t-friendly","Professional":"t-pro","Neutral":"t-
 
 // Bump this version whenever classification logic changes, so stale cached results
 // from an older ruleset are discarded instead of silently reused.
-const LS_KEY = "callrail_analysis_v113";
+const LS_KEY = "callrail_analysis_v114";
 const LS_APIKEY = "callrail_api_key";
 const LS_MODEL = "callrail_model";
 
@@ -1593,6 +1593,11 @@ function classifyHeuristic(call){
   // this afternoon" — that's a caveat leading into an actual offer, not a flat decline.
   const bareNegativeReply=/\bwe don'?t\s*[.,!]|\bwe do not\s*[.,!]|\bno,?\s+we don'?t\s*[.,!]|\bunfortunately,?\s+we don'?t\s*[.,!]/i.test(agentText);
   const elidedDecline=askedYesNoService && bareNegativeReply;
+  // "Do you guys do FREE estimates/quotes/inspections?" / "We don't." is declining to do it for FREE
+  // (a pricing/estimate policy — they still charge a service fee to come out), not declining the service
+  // or trade itself. Without this, "do you (guys) do X" + elided "we don't" reads identically whether X
+  // is the actual service ("do you do plumbing?") or just the free-of-charge framing of an estimate.
+  const freeThingAsked=/\bfree (?:estimate|estimates|quote|quotes|inspection|inspections|consultation|consultations)\b/i.test(callerText);
   // "We don't provide pricing/quotes over the phone" is a business POLICY about how quotes are given
   // (an in-person/on-site assessment is required first) — not a decline of the service or area at all.
   // The bare "we don'?t provide"/"we don'?t do" alternatives in serviceTypeDecline below would otherwise match this
@@ -1618,7 +1623,7 @@ function classifyHeuristic(call){
   // wrong-business one. An areaDecline is never this kind of momentary mix-up (an address either is or
   // isn't in range), so a same-day-availability aside elsewhere in the call (e.g. "I'm pretty booked for
   // today too") must not suppress a genuine, confirmed area decline.
-  if((areaDecline.test(agentText) || ((serviceTypeDecline.test(agentText) || elidedDecline) && !noSameDay)) && !internalTransfer && !bookingConfirmed && !pricingPolicyDecline)
+  if((areaDecline.test(agentText) || ((serviceTypeDecline.test(agentText) || (elidedDecline && !freeThingAsked)) && !noSameDay)) && !internalTransfer && !bookingConfirmed && !pricingPolicyDecline)
     return normalize({summary,is_service_call:false,booking_status:"N/A",invalid_reason:"Incorrect Business",confidence:"Medium",engine:"heuristic"},call);
   // Detect a caller asking for a specific PERSON (not the business's services) about a matter unrelated
   // to what the business offers. If the call reaches a natural conclusion (agent takes the message,
