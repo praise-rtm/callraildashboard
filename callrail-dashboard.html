@@ -332,7 +332,7 @@ const TONE_CLASS = {"Friendly":"t-friendly","Professional":"t-pro","Neutral":"t-
 
 // Bump this version whenever classification logic changes, so stale cached results
 // from an older ruleset are discarded instead of silently reused.
-const LS_KEY = "callrail_analysis_v109";
+const LS_KEY = "callrail_analysis_v113";
 const LS_APIKEY = "callrail_api_key";
 const LS_MODEL = "callrail_model";
 
@@ -793,7 +793,15 @@ function detectCancellation(text){
   const callerIntent=t=>{
     // "you canceled my appointment yesterday" = complaint that the COMPANY cancelled — not this caller.
     if(/\byou cancel(?:l?ed)?\b[^.]{0,20}(yesterday|last month|last week|earlier|already)/.test(t)) return false;
-    const conditional=/just in case|if i (?:don'?t|can'?t|do find|find)|call you back|in case i (?:don'?t|do)/.test(t);
+    // Broad "if...cancel" heuristic: a caller booking an appointment routinely asks a hypothetical
+    // policy question — "if I need to cancel it, is there any penalty?", "if we need to cancel it if
+    // something changes", "if they get here before you, can I just cancel on your [appointment]?" —
+    // none of these are requesting a cancellation NOW, just asking about the cancellation POLICY or
+    // describing a hypothetical. Rather than enumerate every subject/verb combination, treat any "if"
+    // appearing shortly before "cancel" in the same turn as conditional; the override check below still
+    // catches a genuine cancellation that happens to also contain "if" nearby (e.g. "if you don't mind,
+    // I'd like to cancel my appointment" still hits the "cancel my appointment" override).
+    const conditional=/\bif\b[\s\S]{0,60}cancel/i.test(t) || /just in case|call you back|is there (?:a|any) (?:penalty|fee|charge)|any penalty|no penalty/i.test(t);
     const hit=
       /\b(?:want|wanna|need|would like|like|trying|have|call(?:ed|ing)? in)\s+to cancel\b/.test(t) ||
       /\bcancel (?:my|the|this|that) (?:appointment|service|booking|visit|appt)\b/.test(t) ||
@@ -1560,18 +1568,22 @@ function classifyHeuristic(call){
   // or not. "Elsewhere" (when present) must mean a DIFFERENT company — an internal transfer to another
   // department of THIS SAME business (e.g. "let me transfer you to our billing department") is routine
   // handling of an existing customer's request, not evidence the caller reached the wrong business.
-  // Also covers the business being unable to serve the CALLER'S LOCATION, not just their requested
-  // service — "you're outside our service area" is the same wrong-business match as "we don't do that,"
-  // just declined for geography instead of trade/service type.
   // Also covers a TRADE mismatch phrased as a comparison rather than a flat "we don't" — an agent saying
   // an issue "sounds like more of an appliance issue than something on our end" is declining just as much
   // as "we don't do appliances," just softer/hedged phrasing (common when the agent is being diplomatic
   // about a customer's honest, good-faith mistake in which trade they needed).
-  const declines=/(we don'?t (do|service|offer|handle|work on|cover|deal with)|we only (do|service|offer|handle)|that'?s not something we (do|offer|handle)|we don'?t provide|not a service (we|that we)|we don'?t (really )?(do|handle) (that|those)|(outside|out of) (?:our|the) (?:service |coverage )?(?:area|zone|range)|not in (?:our|the) (?:service )?area|don'?t (?:go|travel|service|cover) (?:that far|out (?:that|there)|to (?:that|your) area)|not (?:licensed|able to (?:go|work|operate)) (?:in|out(?:side)? of) (?:that|your) area|too far (?:for us|outside (?:of )?our (?:area|range)|out of our (?:area|range))|don'?t have (?:anyone|coverage|a tech(?:nician)?|service) (?:in|for) (?:that|your) area|more of an? [a-z\s]{0,25}(?:issue|problem) than (?:something )?(?:on our end|we (?:do|handle|could|can)))/;
+  const serviceTypeDecline=/(we don'?t (do|service|offer|handle|work on|cover|deal with)|we only (do|service|offer|handle)|that'?s not something we (do|offer|handle)|we don'?t provide|not a service (we|that we)|we don'?t (really )?(do|handle) (that|those)|more of an? [a-z\s]{0,25}(?:issue|problem) than (?:something )?(?:on our end|we (?:do|handle|could|can)))/;
+  // The business being unable to serve the CALLER'S LOCATION — "you're outside our service area" is the
+  // same wrong-business match as "we don't do that," just declined for geography instead of trade/service
+  // type. Kept SEPARATE from serviceTypeDecline (not gated by noSameDay below): a location decline is a
+  // factual, geographic determination — either the address is in range or it isn't — not the kind of
+  // momentary misunderstanding a trade-type decline can be (e.g. agent initially hears "septic" and
+  // declines, then the caller clarifies it's actually a drain line and the call continues normally).
+  const areaDecline=/(?:outside(?: of)?|out of) (?:our|the) (?:service |coverage )?(?:area|zone|range)|not in (?:our|the) (?:service )?area|don'?t (?:go|travel|service|cover) (?:that far|out (?:that|there)|to (?:that|your) area)|not (?:licensed|able to (?:go|work|operate)) (?:in|out(?:side)? of) (?:that|your) area|too far (?:for us|outside(?: of)? our (?:area|range)|out of our (?:area|range))|don'?t have (?:anyone|coverage|a tech(?:nician)?|service) (?:in|for) (?:that|your) area/;
   const internalTransfer=/\b(department|dept\.?|extension|ext\.?|billing|scheduling|dispatch)\b/i.test(agentText)
     && !/(different|another) (company|provider|business)/i.test(agentText);
   // Natural speech often elides the repeated verb: caller asks "do you guys SERVICE Hartwell, Georgia?"
-  // and the agent just replies "we don't" without restating "service" — declines above requires the verb
+  // and the agent just replies "we don't" without restating "service" — serviceTypeDecline above requires the verb
   // to literally follow "we don't" in the agent's OWN text, so it misses this common elliptical pattern.
   // Catching the caller's yes/no coverage/service question paired with a bare agent negative generalizes
   // beyond location too — the same ellipsis happens for "do you service tankless water heaters?" / "we don't."
@@ -1583,7 +1595,7 @@ function classifyHeuristic(call){
   const elidedDecline=askedYesNoService && bareNegativeReply;
   // "We don't provide pricing/quotes over the phone" is a business POLICY about how quotes are given
   // (an in-person/on-site assessment is required first) — not a decline of the service or area at all.
-  // The bare "we don'?t provide"/"we don'?t do" alternatives in declines below would otherwise match this
+  // The bare "we don'?t provide"/"we don'?t do" alternatives in serviceTypeDecline below would otherwise match this
   // literally, even on a call where the business explicitly confirmed they DO service the request and
   // location. Matched broadly (any price/quote/estimate mention near "over the phone") rather than one
   // exact phrase — real calls phrase this as "they don't like giving pricing over the phone... we don't
@@ -1598,12 +1610,15 @@ function classifyHeuristic(call){
   // not acceptance of a booking — callerAgreed's generic "perfect"/"thank you"/"okay" phrases will match
   // that closing regardless, so treating it as proof of a real booking wrongly suppressed a genuine
   // Incorrect Business call that never actually converted.
-  // Also excluded when noSameDay fires: an agent's momentary "we don't work on septic tanks" before the
-  // caller clarifies it's actually a clogged drain line (not septic), followed by a real scheduling/
-  // availability discussion for the ACTUAL issue ("soonest I'd have available would be Friday"), means
-  // the earlier decline was just a clarifying misunderstanding, not the call's real outcome — this is a
-  // scheduling decline (Not Available), not a wrong-business one.
-  if((declines.test(agentText) || elidedDecline) && !internalTransfer && !bookingConfirmed && !pricingPolicyDecline && !noSameDay)
+  // serviceTypeDecline/elidedDecline (but NOT areaDecline) also excluded when noSameDay fires: an agent's
+  // momentary "we don't work on septic tanks" before the caller clarifies it's actually a clogged drain
+  // line (not septic), followed by a real scheduling/availability discussion for the ACTUAL issue
+  // ("soonest I'd have available would be Friday"), means the earlier decline was just a clarifying
+  // misunderstanding, not the call's real outcome — this is a scheduling decline (Not Available), not a
+  // wrong-business one. An areaDecline is never this kind of momentary mix-up (an address either is or
+  // isn't in range), so a same-day-availability aside elsewhere in the call (e.g. "I'm pretty booked for
+  // today too") must not suppress a genuine, confirmed area decline.
+  if((areaDecline.test(agentText) || ((serviceTypeDecline.test(agentText) || elidedDecline) && !noSameDay)) && !internalTransfer && !bookingConfirmed && !pricingPolicyDecline)
     return normalize({summary,is_service_call:false,booking_status:"N/A",invalid_reason:"Incorrect Business",confidence:"Medium",engine:"heuristic"},call);
   // Detect a caller asking for a specific PERSON (not the business's services) about a matter unrelated
   // to what the business offers. If the call reaches a natural conclusion (agent takes the message,
