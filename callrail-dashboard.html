@@ -1833,7 +1833,7 @@ $("fBooking").addEventListener("change",renderTable);
 $("fService").addEventListener("change",renderTable);
 $("fTone").addEventListener("change",renderTable);
 $("fStatus").addEventListener("change",renderTable);
-$("fCompany").addEventListener("change",renderTable);
+$("fCompany").addEventListener("change",renderAll);
 $("fDateRange").addEventListener("change",()=>{
   const isCustom=$("fDateRange").value==="custom";
   $("fDateFrom").style.display=isCustom?"":"none";
@@ -1878,12 +1878,15 @@ function dateRangeBounds(preset,customFrom,customTo){
 // used to scope the top stat cards and category counts to the selected range.
 function callsInDateRange(){
   const bounds=dateRangeBounds($("fDateRange").value,$("fDateFrom").value,$("fDateTo").value);
-  if(!bounds) return CALLS;
+  const fco=$("fCompany").value;
   return CALLS.filter(c=>{
-    const d=new Date(c.startTime);
-    if(isNaN(d)) return false;
-    if(bounds[0] && d<bounds[0]) return false;
-    if(bounds[1] && d>bounds[1]) return false;
+    if(fco && c.company!==fco) return false;
+    if(bounds){
+      const d=new Date(c.startTime);
+      if(isNaN(d)) return false;
+      if(bounds[0] && d<bounds[0]) return false;
+      if(bounds[1] && d>bounds[1]) return false;
+    }
     return true;
   });
 }
