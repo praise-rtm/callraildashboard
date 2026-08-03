@@ -332,7 +332,7 @@ const TONE_CLASS = {"Friendly":"t-friendly","Professional":"t-pro","Neutral":"t-
 
 // Bump this version whenever classification logic changes, so stale cached results
 // from an older ruleset are discarded instead of silently reused.
-const LS_KEY = "callrail_analysis_v114";
+const LS_KEY = "callrail_analysis_v116";
 const LS_APIKEY = "callrail_api_key";
 const LS_MODEL = "callrail_model";
 
@@ -793,6 +793,11 @@ function detectCancellation(text){
   const callerIntent=t=>{
     // "you canceled my appointment yesterday" = complaint that the COMPANY cancelled — not this caller.
     if(/\byou cancel(?:l?ed)?\b[^.]{0,20}(yesterday|last month|last week|earlier|already)/.test(t)) return false;
+    // "I'd like to cancel that [charge/subscription]" is disputing a BILLING/credit-card charge, not
+    // cancelling a scheduled service appointment — a fundamentally different kind of "cancel" request
+    // (this is still a genuine, valid call, just not the "Cancelled" appointment category).
+    if(/\b(?:charge|charged|credit card|debit card|card ending|subscription|annual (?:cost|fee|charge)|billed|billing)\b/.test(t)
+       && !/\b(?:appointment|service call|visit|technician|scheduled (?:service|visit))\b/.test(t)) return false;
     // Broad "if...cancel" heuristic: a caller booking an appointment routinely asks a hypothetical
     // policy question — "if I need to cancel it, is there any penalty?", "if we need to cancel it if
     // something changes", "if they get here before you, can I just cancel on your [appointment]?" —
@@ -1361,6 +1366,12 @@ function classifyHeuristic(call){
   const screenedNoPickup=agentTurnCount<=1 && /record your name and reason for calling/i.test(agentText);
   const routedToInternalVoicemail=screenedNoPickup||/leave (?:an? )?(?:additional )?message|reply after the tone|this person is not available/i.test(agentText);
   const personSrc=(call.transcription||"")+" "+(call.note||"");
+  // Caller is disputing a BILLING/credit-card charge or subscription, not requesting/cancelling a
+  // service appointment — computed early so it can gate the voicemail-callback shortcut below too (a
+  // caller leaving a message asking to be called back about a billing dispute is not a secured service
+  // lead just because "call me back" also matches the generic callback-request phrase list).
+  const billingDispute=/\b(?:charge|charged|credit card|debit card|card ending|subscription|annual (?:cost|fee|charge)|billed|billing)\b/i.test(callerText)
+    && !/\b(?:appointment|service call|visit|technician|scheduled (?:service|visit))\b/i.test(callerText);
   // Caller properly ends the call by stating SHE will call back herself — computed early so it can also
   // gate the voicemail short-circuit below, not just the later booking checks (a caller who says "he
   // would just callback tomorrow and set it up" must not be read as a secured lead just because the call
@@ -1554,7 +1565,7 @@ function classifyHeuristic(call){
     // callerWillCallBack excluded: a caller who says SHE will call back herself hasn't been secured as
     // a booked lead just because the message also happens to reach voicemail and mention real service
     // content — fall through so the normal cascade's Not Booked handling for that phrase applies instead.
-    if(callerText.trim() && (isService || requestsCallback) && !callerWillCallBack)
+    if(callerText.trim() && (isService || requestsCallback) && !callerWillCallBack && !billingDispute)
       return normalize({summary:heuristicSummary(call.transcription),is_service_call:true,booking_status:"Booked",invalid_reason:"Valid Call",confidence:"Medium",engine:"heuristic"},call);
     // Otherwise (empty voicemail box, or a message that isn't a service/callback request) — fall through
     // to the normal classification cascade below so a genuinely empty voicemail still gets handled
