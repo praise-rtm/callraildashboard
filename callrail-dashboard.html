@@ -332,7 +332,7 @@ const TONE_CLASS = {"Friendly":"t-friendly","Professional":"t-pro","Neutral":"t-
 
 // Bump this version whenever classification logic changes, so stale cached results
 // from an older ruleset are discarded instead of silently reused.
-const LS_KEY = "callrail_analysis_v116";
+const LS_KEY = "callrail_analysis_v120";
 const LS_APIKEY = "callrail_api_key";
 const LS_MODEL = "callrail_model";
 
@@ -1323,9 +1323,6 @@ function classifyHeuristic(call){
     return normalize({summary,is_service_call:false,booking_status:"Not Booked",invalid_reason:"Disconnected",confidence:"Medium",engine:"heuristic"},call);
 
   // Signals — evaluate service intent FIRST so it can override weak spam/job/marketing keyword hits.
-  const booked = has("appointment","scheduled","schedule you","set up an","see you","we'll be there","send someone",
-    "have someone come","technician will","call you back","give you a call","someone will call","i'll have someone",
-    "we can come","book you","get you on the schedule","set you up","between "," to noon","get somebody there");
   const serviceSignals = hasCaller("drain","clog","backup","back up","sink","toilet","sewer","plumb","water heater","leak",
     "jet","snake","cleanout","clean out","estimate","quote","appointment","schedule","technician","garbage disposal",
     "faucet","pipe","flood","camera the","service call","tank size","power vent","tankless","gallon tank","gallon water");
@@ -1385,8 +1382,17 @@ function classifyHeuristic(call){
   // appointment"). Making it optional matched the bare noun phrase "a scheduled appointment", so a caller
   // merely REFERRING to their existing appointment ("I have a scheduled appointment for tomorrow. Can you
   // cancel?") was read as a newly-confirmed booking — which then suppressed the "Cancelled" result.
-  const bookingConfirmed = /appointment (was |is |has been )?(set|scheduled|booked|confirmed|arranged)|(set|scheduled|booked|arranged) (up )?(an|the|your|you an|you the) appointment|arrangements (are|were) made|booked you (in|for|today)|you'?re booked (in|for|today)|got you (down|scheduled|booked|on the schedule)|(you|we)'?re all set|(get|got) (this|it|you|that|everything) (all )?(set up|scheduled|booked|arranged)|put (you|it|him|her) (down|under|on the schedule)|i (will|'?ll|'?m going to|'?m gonna) (have|get|send|put|schedule)[^.]{0,25}(there|out|over|down|come|between|today|tomorrow|this|scheduled|set)|(someone|somebody) (will|is going to|'?s going to) (be there|come out|arrive|head)|(technician|tech) (will|'?s going to) (arrive|be there|come|head)|(is|are|they'?re) coming (out )?(today|tomorrow|between|this)|(is|are|they'?re)(?: supposed to be)? going over (today|tomorrow|this)|(we'?ll |\bi'?ll )see you (then|tomorrow|on |this |at )|see you (then|tomorrow|on the)|look forward to seeing you|caller (agreed|acknowledged|confirmed)|can be scheduled (for )?(today|tomorrow|this (week|afternoon|morning|evening)|on \w+day)|(is|are|they'?re|he'?s|she'?s) on (?:the|our) schedule( right now)?|let'?s go ahead and (?:also )?(?:tentatively )?schedule|go ahead and (?:tentatively )?schedule (?:that|it|you|this)|tentatively schedule (?:that|it|you|this)|put[^.]{0,20}service call[^.]{0,10}\bin\b|put in[^.]{0,20}service call|i could (?:probably )?(?:do it|get (?:someone|somebody) out(?: there)?|come out|send (?:someone|somebody) out) (?:today|tomorrow|this afternoon|this morning|monday|tuesday|wednesday|thursday|friday|saturday|sunday)/i.test(blob)
+  const bookingConfirmed = /appointment (was |is |has been )?(set|scheduled|booked|confirmed|arranged)|(set|scheduled|booked|arranged) (up )?(an|the|your|you an|you the) appointment|arrangements (are|were) made|booked you (in|for|today)|you'?re booked (in|for|today)|got you (down|scheduled|booked|on the schedule)|(you|we)'?re all set|(get|got) (this|it|you|that|everything) (all )?(set up|scheduled|booked|arranged)|put (you|it|him|her) (down|under|on the schedule)|i (will|'?ll|'?m going to|'?m gonna) (have|get|send|put|schedule)[^.]{0,25}(there|out|over|down|come|between|today|tomorrow|this|scheduled|set)|(someone|somebody) (will|is going to|'?s going to) (be there|come out|arrive|head)|(technician|tech) (will|'?s going to) (arrive|be there|come|head)|(is|are|they'?re) coming (out )?(today|tomorrow|between|this)|(is|are|they'?re)(?: supposed to be)? going over (today|tomorrow|this)|(we'?ll |\bi'?ll )see you (then|tomorrow|on |this |at )|see you (then|tomorrow|on the)|look forward to seeing you|caller (?:agreed|acknowledged|confirmed) (?:to|with)?[^.]{0,15}(?:appointment|schedul\w*|booking|time slot|visit)|can be scheduled (for )?(today|tomorrow|this (week|afternoon|morning|evening)|on \w+day)|(is|are|they'?re|he'?s|she'?s) on (?:the|our) schedule( right now)?|let'?s go ahead and (?:also )?(?:tentatively )?schedule|go ahead and (?:tentatively )?schedule (?:that|it|you|this)|tentatively schedule (?:that|it|you|this)|put[^.]{0,20}service call[^.]{0,10}\bin\b|put in[^.]{0,20}service call|i could (?:probably )?(?:do it|get (?:someone|somebody) out(?: there)?|come out|send (?:someone|somebody) out) (?:today|tomorrow|this afternoon|this morning|monday|tuesday|wednesday|thursday|friday|saturday|sunday)|(?:i'?ve|i have) got (?:them|him|her|someone|somebody|it) coming (?:out)?[^.]{0,25}(?:today|tomorrow|this \w+day|between)|probably[\s\S]{0,20}(?:tomorrow|today|this (?:morning|afternoon|evening)|on \w+day)[^.]{0,20}(?:after|before|around|between)/i.test(blob)
     || /(?:^|\|)\s*booked\b/i.test(call.note||"");   // dispatcher-note "Booked today" tag (browser-safe, no lookbehind)
+  // Simpler bare-keyword booking signal used only by the non-isService fallback paths further down
+  // (very-short-call / no-clear-conclusion / natural-closing-without-a-topic-match) — folds in the much
+  // more thorough bookingConfirmed regex above so those fallbacks benefit from every pattern added there,
+  // instead of only their own narrower keyword list (a call that never matches isService's plumbing-
+  // specific keywords — e.g. an electrical "harmonic balancing shunt" — still reaches these fallbacks and
+  // needs the same booking detection quality as the main isService cascade).
+  const booked = bookingConfirmed || has("appointment","scheduled","schedule you","set up an","see you","we'll be there","send someone",
+    "have someone come","technician will","call you back","give you a call","someone will call","i'll have someone",
+    "we can come","book you","get you on the schedule","set you up","between "," to noon","get somebody there");
   // Agent OFFERS to book (contingent on the caller agreeing).
   // NOTE: bare "i can get"/"i could do"/"we can send" etc. were removed — those match completely
   // ordinary statements with no scheduling intent at all ("I could get you a price quote on that",
