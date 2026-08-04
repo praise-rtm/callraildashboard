@@ -332,7 +332,7 @@ const TONE_CLASS = {"Friendly":"t-friendly","Professional":"t-pro","Neutral":"t-
 
 // Bump this version whenever classification logic changes, so stale cached results
 // from an older ruleset are discarded instead of silently reused.
-const LS_KEY = "callrail_analysis_v120";
+const LS_KEY = "callrail_analysis_v121";
 const LS_APIKEY = "callrail_api_key";
 const LS_MODEL = "callrail_model";
 
@@ -1505,6 +1505,12 @@ function classifyHeuristic(call){
   const harvestsOwnerName=/\b(?:his|her|their|the\s+(?:owner|gentleman|lady|manager)'?s?)\s+(?:first|last)\s+name\b|\bwhat'?s?\s+(?:his|her|their)\s+name\b/i.test(callerText);
   const noStatedPurpose=!hasCaller("regarding","because","i'm calling about","i'm calling regarding","i'm calling for","service","repair","quote","estimate","leak","drain","clog","appointment","schedule","invoice","billing","account","complaint","issue with","problem with");
   const ownerScoutingCall=asksForOwnerRole && harvestsOwnerName && noStatedPurpose;
+  // Marketing-vendor scouting call: caller asks who at the business handles/manages marketing (not asking
+  // about a service they need — a genuine customer never asks this), typically to get a name/email for a
+  // later sales pitch. Distinct from ownerScoutingCall above (which requires asking for the owner BY ROLE
+  // and harvesting a name) — this one is topic-specific ("marketing") and often resolves with just an email
+  // handed over, no name-harvesting needed.
+  const marketingRoleInquiry=/\b(?:question|questions)\s+about\s+(?:your\s+|the\s+|our\s+)?marketing\b|\bwho\s+(?:handles|manages|does|runs|oversees|is\s+in\s+charge\s+of|takes\s+care\s+of)\s+(?:your\s+|the\s+|our\s+)?marketing\b|\bwho\s+(?:do\s+i|would\s+i|should\s+i|can\s+i)\s+(?:talk\s+to|speak\s+to|speak\s+with|contact|reach\s+out\s+to)\s+(?:about|regarding|for)\s+(?:your\s+|the\s+|our\s+)?marketing\b/i.test(callerText);
   // "i have the wrong"/"must have the wrong" require a completion naming what's wrong (number/company/
   // business/place) — bare "I have the wrong ___" also matches a caller mixing up a CALLBACK phone
   // number's digits ("maybe I have the wrong one now" while reading off a number to text photos to),
@@ -1557,7 +1563,7 @@ function classifyHeuristic(call){
   // meet") can trip the generic "schedule"/"appointment" service-signal keywords, which used to make
   // isService true and skip this check entirely — a strong, specific marketing-keyword match should win
   // regardless of that.
-  if(marketing || ownerScoutingCall) return normalize({summary,is_service_call:false,booking_status:"N/A",invalid_reason:"Marketing",confidence:"Low",engine:"heuristic"},call);
+  if(marketing || ownerScoutingCall || marketingRoleInquiry) return normalize({summary,is_service_call:false,booking_status:"N/A",invalid_reason:"Marketing",confidence:"Low",engine:"heuristic"},call);
 
   // "Voicemail" means the caller actually reached a voicemail box and (potentially) left a message —
   // unlike Missed/Abandoned there is real caller content to judge. A message that requests service
