@@ -316,12 +316,12 @@ tbody tr.rude-row:hover{background:#ffecec}
 // NOTE: "Repeat Caller" is deliberately NOT a category. Repeat callers are classified on the
 // call's own merits (valid service call or not, booked or not); first-time status is a separate column.
 const REASONS = [
-  "Valid Call","Not Available","Cancelled","Abandoned","Missed","Disconnected","Job Not Served","Location Not Served",
+  "Valid Call","Not Available","Cancelled","Abandoned","Missed","Disconnected","Incorrect Business",
   "Job Application","Marketing","Spam","Wrong Number"
 ];
 const REASON_COLORS = {
   "Valid Call":"#22c55e","Not Available":"#ca8a04","Cancelled":"#be185d","Abandoned":"#f59e0b","Missed":"#ef4444","Disconnected":"#8b5cf6",
-  "Job Not Served":"#0ea5e9","Location Not Served":"#0369a1","Job Application":"#14b8a6","Marketing":"#f97316",
+  "Incorrect Business":"#0ea5e9","Job Application":"#14b8a6","Marketing":"#f97316",
   "Spam":"#dc2626","Wrong Number":"#a855f7"
 };
 // Phone numbers (any format — matched on the last 10 digits) that should ALWAYS be tagged Marketing,
@@ -332,7 +332,7 @@ const TONE_CLASS = {"Friendly":"t-friendly","Professional":"t-pro","Neutral":"t-
 
 // Bump this version whenever classification logic changes, so stale cached results
 // from an older ruleset are discarded instead of silently reused.
-const LS_KEY = "callrail_analysis_v123";
+const LS_KEY = "callrail_analysis_v124";
 const LS_APIKEY = "callrail_api_key";
 const LS_MODEL = "callrail_model";
 
@@ -583,7 +583,7 @@ IMPORTANT — work in this order: FIRST extract the facts ("key_facts"), THEN wr
    - "Booked" also if the call disconnected AFTER an agreement was reached OR after the agent told the caller that someone would contact/call them back.
    - "Not Booked" if it IS a service call but no appointment was agreed and no callback was promised.
    - "Not Booked" if the caller is ONLY following up on, confirming, or checking the status of an ALREADY-booked appointment and no NEW appointment is being set (in this case invalid_reason must be "Valid Call").
-   - "Not Booked" for EVERY other call where no appointment was agreed and no callback was promised — this INCLUDES all non-service categories: Abandoned, Missed, Job Not Served, Location Not Served, Job Application, Marketing, Spam, and Wrong Number. Do NOT use "N/A" — every call is either "Booked" or "Not Booked".
+   - "Not Booked" for EVERY other call where no appointment was agreed and no callback was promised — this INCLUDES all non-service categories: Abandoned, Missed, Incorrect Business, Job Application, Marketing, Spam, and Wrong Number. Do NOT use "N/A" — every call is either "Booked" or "Not Booked".
 
 5. "invalid_reason": exactly one of:
    - "Valid Call" — a genuine service call (a real lead/customer). Use this whenever is_service_call is true, EVEN for repeat customers, and INCLUDING when the caller is only following up on an existing appointment (mark booking "Not Booked" in that case), unless a more specific invalid reason clearly applies.
@@ -592,13 +592,12 @@ IMPORTANT — work in this order: FIRST extract the facts ("key_facts"), THEN wr
    - "Abandoned" — the CallRail status is Abandoned.
    - "Missed" — the CallRail status is Missed.
    - "Disconnected" — the call ended with no proper resolution and no agreement reached between the agent and the caller — the line dropped, the caller hung up, or the call simply trailed off — AND the caller did not describe a genuine, identifiable need for the business's services. Mark booking_status "Not Booked" (never "N/A" for a disconnected call) and is_service_call false. This includes the case where the agent answered and spoke but got NO response from the caller before the line ended — no service was requested. IMPORTANT — do NOT use "Disconnected" for a genuine service inquiry that simply didn't end in a booking: if the caller clearly described a real problem or request related to the business's services, that is "Valid Call" with booking_status "Not Booked", even though no appointment/callback was agreed — a real lead that didn't book must stay a tracked "Not Booked" lead, not get relabeled "Disconnected". "Disconnected" is reserved for calls with no identifiable service content at all AND no proper conclusion — e.g. a caller asking for a specific employee about an unrelated personal matter, where the call cuts off with no resolution. If that SAME kind of call instead reaches a resolution (the agent takes the message and closes out with a goodbye), use "Valid Call" with booking_status "Not Booked" instead, since the caller was genuinely engaged with by the business even though it wasn't a service request. If an agreement WAS reached, or the agent said someone would contact/call the caller back BEFORE the drop, use "Valid Call" instead with booking_status "Booked". Also do NOT use "Disconnected" when the CALLER explicitly ends the call for an unrelated/interrupting reason (e.g. "my boss is calling") and states that SHE will call back — that is a real, if incomplete, contact attempt, not a technical disconnect; use "Valid Call" with booking_status "Not Booked" instead. Conversely, DO use "Disconnected" (even though the caller stated a genuine, identifiable need, e.g. following up on an appointment) when a TECHNICAL/audio failure — static, the agent saying they can't hear the caller, a dropped line — ends the call before that need was actually addressed: the caller's stated purpose never got resolved, so this is a dropped line, not a handled (if unbooked) contact. A booking/callback confirmed BEFORE the technical failure still wins as "Valid Call".
-   - "Job Not Served" — the caller's PRIMARY request is for a type of work/service this business plainly does not offer, AND the agent explicitly told the caller they don't do/handle/offer it (a flat decline like "we don't do that" / "that's not something we handle" counts on its own — an explicit referral elsewhere is extra evidence but not required). Do NOT use this for a normal service call where the agent merely mentions or recommends another provider as an aside, gives a referral for an unrelated extra, or still handles the caller's actual request. An agent transferring the caller to another department of THIS SAME business (e.g. "let me transfer you to our billing department") is routine internal handling, not a decline, and stays "Valid Call". When in doubt, it is a "Valid Call".
-   - "Location Not Served" — the agent explicitly told the caller that the business does not serve the caller's location/area (e.g. "you're outside our service area", "we don't cover that zip code"). This is a geographic decline, distinct from "Job Not Served" (which is about the type of work, not where it is).
+   - "Incorrect Business" — use ONLY when the caller clearly reached the WRONG company: either (a) they explicitly ask for a different company by name / think they dialed someone else, or (b) their PRIMARY request is for a service this business plainly does not offer, or a location it does not serve, AND the agent explicitly says so (a flat decline like "we don't do that" / "that's not something we handle" / "you're outside our service area" counts on its own — an explicit referral elsewhere is extra evidence but not required). Do NOT use "Incorrect Business" for a normal service call where the agent merely mentions or recommends another provider as an aside, gives a referral for an unrelated extra, or handles the caller's actual request. An agent transferring the caller to another department of THIS SAME business (e.g. "let me transfer you to our billing department") is routine internal handling of an existing customer's request, not evidence of the wrong business, and stays "Valid Call". When in doubt, it is a "Valid Call".
    - "Job Application" — the caller is seeking employment.
    - "Marketing" — the caller is a vendor, salesperson, or offering another service to the business. This includes a call that the agent quickly recognized as a vendor/marketing pitch and hung up on within a few seconds — even a short, cut-off transcript ("Hi, this is calling from [X], we help businesses with...") is still "Marketing", not "Disconnected", as long as the caller's own words identify them as a vendor/salesperson. Only fall back to "Disconnected" when the transcript gives no indication at all of who the caller was or why they called.
-   NOTE ON REPEAT CALLERS: "Repeat Caller" is NOT a category and must never be returned. Whether the caller is a first-time or a repeat/returning caller is recorded in a separate field and has NO bearing on this classification. Always classify a repeat caller on the call's own merits — if they request, book, follow up on, or discuss service, it is a "Valid Call" with booking_status set to Booked or Not Booked. If a repeat caller's call has no service purpose, pick the invalid reason that actually fits (Spam, Marketing, Wrong Number, Job Application, Job Not Served, Location Not Served, or Disconnected if the call had no clear conclusion).
+   NOTE ON REPEAT CALLERS: "Repeat Caller" is NOT a category and must never be returned. Whether the caller is a first-time or a repeat/returning caller is recorded in a separate field and has NO bearing on this classification. Always classify a repeat caller on the call's own merits — if they request, book, follow up on, or discuss service, it is a "Valid Call" with booking_status set to Booked or Not Booked. If a repeat caller's call has no service purpose, pick the invalid reason that actually fits (Spam, Marketing, Wrong Number, Job Application, Incorrect Business, or Disconnected if the call had no clear conclusion).
    - "Spam" — spam/robocall. Also treat "you need to get your business verified on Google" pitches as Spam.
-   - "Wrong Number" — the caller dialed the wrong number entirely, including when they explicitly ask for a different company by name or say/imply they think they dialed someone else (as opposed to reaching this business on purpose but for work it doesn't do, or a location it doesn't serve — those are "Job Not Served" / "Location Not Served" instead).
+   - "Wrong Number" — the caller dialed the wrong number entirely, including when they explicitly ask for a different company by name or say/imply they think they dialed someone else (as opposed to reaching this business on purpose but for work it doesn't do, or a location it doesn't serve — those are "Incorrect Business" instead).
 
 6. "confidence": "High", "Medium", or "Low".
 
@@ -1191,10 +1190,8 @@ function buildHeuristicSummary(call,res){
       return `${who} was a salesperson or vendor pitching a product or service to the business, not a customer. It was logged as a marketing call.`;
     case "Wrong Number":
       return `${who} had dialed the wrong number and was not trying to reach this business.`;
-    case "Job Not Served":
-      return `${who} was looking for ${topic}, but the agent said that is not a service this business offers.`;
-    case "Location Not Served":
-      return `${who} was looking for ${topic}${city?` in ${city}`:""}, but the agent said the business does not serve that location.`;
+    case "Incorrect Business":
+      return `${who} was looking for ${topic}${city?` in ${city}`:""}, but it is not a service this business offers or a location it serves, so the agent referred them elsewhere.`;
     case "Cancelled":
       return `${who} called to cancel their existing appointment or service${topicSpecific?` (${topic})`:""}. The booking was cancelled.`;
     case "Disconnected":
@@ -1524,7 +1521,7 @@ function classifyHeuristic(call){
     // Agent-initiated correction: the CALLER never recognizes the mistake herself, but the agent explicitly
     // redirects her to call a different company/entity and clarifies this business's own identity in the
     // same breath ("You need to call Heco. This is EI Electrical.") — a company-identity mixup, distinct
-    // from the caller reaching this business on purpose for work it plainly doesn't do (Job Not Served).
+    // from the caller reaching this business on purpose for work it plainly doesn't do (Incorrect Business).
     || /\byou(?:'ll|'d| will| would)?\s+(?:need|have|should)\s+to\s+call\b[^.?!]{0,60}[.?!]\s*this\s+is\b/i.test(agentText);
   // Marketing-agency QA / test calls (e.g. Real Time Marketing checking the client's tracking numbers,
   // directories, LSA/GBP, or doing a monthly check-in) — these are NOT customer service requests.
@@ -1592,7 +1589,7 @@ function classifyHeuristic(call){
     // correctly by the existing logic.
   }
 
-  // Job Not Served / Location Not Served — the agent says they don't do/serve the requested work. An explicit referral
+  // Incorrect Business — the agent says they don't do/serve the requested work. An explicit referral
   // elsewhere ("you'll want to call a plumber") is strong extra evidence but NOT required: a flat decline
   // with nothing else offered ("We do septic." / "No, we don't do that." / caller thanks them and hangs up)
   // is just as much a wrong-business match — the caller reached a company that can't help at all, referral
@@ -1645,7 +1642,7 @@ function classifyHeuristic(call){
   // after receiving a REFERRAL to a different company (e.g. water damage remediation) is just politeness,
   // not acceptance of a booking — callerAgreed's generic "perfect"/"thank you"/"okay" phrases will match
   // that closing regardless, so treating it as proof of a real booking wrongly suppressed a genuine
-  // Job Not Served / Location Not Served call that never actually converted.
+  // Incorrect Business call that never actually converted.
   // serviceTypeDecline/elidedDecline (but NOT areaDecline) also excluded when noSameDay fires: an agent's
   // momentary "we don't work on septic tanks" before the caller clarifies it's actually a clogged drain
   // line (not septic), followed by a real scheduling/availability discussion for the ACTUAL issue
@@ -1655,9 +1652,9 @@ function classifyHeuristic(call){
   // isn't in range), so a same-day-availability aside elsewhere in the call (e.g. "I'm pretty booked for
   // today too") must not suppress a genuine, confirmed area decline.
   if(areaDecline.test(agentText) && !internalTransfer && !bookingConfirmed && !pricingPolicyDecline)
-    return normalize({summary,is_service_call:false,booking_status:"N/A",invalid_reason:"Location Not Served",confidence:"Medium",engine:"heuristic"},call);
+    return normalize({summary,is_service_call:false,booking_status:"N/A",invalid_reason:"Incorrect Business",confidence:"Medium",engine:"heuristic"},call);
   if((serviceTypeDecline.test(agentText) || (elidedDecline && !freeThingAsked)) && !noSameDay && !internalTransfer && !bookingConfirmed && !pricingPolicyDecline)
-    return normalize({summary,is_service_call:false,booking_status:"N/A",invalid_reason:"Job Not Served",confidence:"Medium",engine:"heuristic"},call);
+    return normalize({summary,is_service_call:false,booking_status:"N/A",invalid_reason:"Incorrect Business",confidence:"Medium",engine:"heuristic"},call);
   // Detect a caller asking for a specific PERSON (not the business's services) about a matter unrelated
   // to what the business offers. If the call reaches a natural conclusion (agent takes the message,
   // closes out with a goodbye), that's a real, handled contact — see the Valid Call return below. If the
@@ -1826,7 +1823,7 @@ function normalize(a, call){
   if(a.invalid_reason==="Valid Call") a.is_service_call=true;
   if(a.is_service_call && a.booking_status==="N/A") a.booking_status="Not Booked";
   // Per business rule, these non-service categories are marked "Not Booked" (never N/A).
-  if(["Abandoned","Missed","Job Not Served","Location Not Served","Job Application","Marketing","Spam","Wrong Number","Cancelled","Disconnected"].includes(a.invalid_reason))
+  if(["Abandoned","Missed","Incorrect Business","Job Application","Marketing","Spam","Wrong Number","Cancelled","Disconnected"].includes(a.invalid_reason))
     a.booking_status="Not Booked";
   // "Not Available" is a genuine service call that didn't book due to scheduling → service + Not Booked.
   if(a.invalid_reason==="Not Available"){ a.is_service_call=true; a.booking_status="Not Booked"; }
