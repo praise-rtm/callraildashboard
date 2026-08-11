@@ -88,6 +88,20 @@ body{font-family:'Montserrat',sans-serif;background:var(--bg);color:var(--text);
 /* REASON BREAKDOWN */
 .reasons{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:16px}
 .reasons h3{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);margin-bottom:11px}
+/* Performance insights narrative panel */
+.insights{background:linear-gradient(180deg,var(--surface),var(--surface2));border:1px solid var(--border);
+  border-left:4px solid var(--accent);border-radius:12px;padding:16px 20px;margin-bottom:16px}
+.insights h3{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:var(--primary);
+  margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.insights h3 .rng{margin-left:auto;font-size:10.5px;color:var(--text-muted);font-weight:700;text-transform:none;letter-spacing:0}
+.insights p{font-size:13.5px;line-height:1.7;color:var(--text);margin:0}
+.insights p b{color:var(--primary);font-weight:700}
+.insights p .up{color:#128a4b;font-weight:700}
+.insights p .down{color:#c0392b;font-weight:700}
+.insights .ins-tags{margin-top:11px;display:flex;flex-wrap:wrap;gap:7px}
+.insights .ins-tag{font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;background:var(--surface);
+  border:1px solid var(--border);color:var(--text-muted);white-space:nowrap}
+.insights .ins-tag b{color:var(--primary)}
 .reason-grid{display:flex;flex-wrap:wrap;gap:8px}
 .reason-pill{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;padding:6px 12px;border-radius:20px;
   background:var(--surface2);border:1px solid var(--border);cursor:pointer;transition:.15s}
@@ -238,6 +252,13 @@ tbody tr.rude-row:hover{background:#ffecec}
     <div class="stat red"><div class="stat-val" id="stRude">0</div><div class="stat-label">Tone</div><div class="stat-sub" id="stRudeSub">agent tone flags</div></div>
   </div>
 
+  <!-- PERFORMANCE INSIGHTS -->
+  <div class="insights" id="insightsCard" style="display:none">
+    <h3>Performance Insights <span class="rng" id="insRange"></span></h3>
+    <p id="insText"></p>
+    <div class="ins-tags" id="insTags"></div>
+  </div>
+
   <div class="reasons" id="reasonsCard" style="display:none">
     <h3>Call Categories &mdash; click to filter</h3>
     <div class="reason-grid" id="reasonGrid"></div>
@@ -332,7 +353,7 @@ const TONE_CLASS = {"Friendly":"t-friendly","Professional":"t-pro","Neutral":"t-
 
 // Bump this version whenever classification logic changes, so stale cached results
 // from an older ruleset are discarded instead of silently reused.
-const LS_KEY = "callrail_analysis_v126";
+const LS_KEY = "callrail_analysis_v129";
 const LS_APIKEY = "callrail_api_key";
 const LS_MODEL = "callrail_model";
 
@@ -390,6 +411,7 @@ function handleFile(file){
       buildCompanyFilter();
       renderAll();
       $("stats").style.display="grid";
+      $("insightsCard").style.display="block";
       $("reasonsCard").style.display="block";
       $("toolbar").style.display="flex";
       $("dateToolbar").style.display="flex";
@@ -1920,7 +1942,100 @@ $("fDateRange").addEventListener("change",()=>{
 $("fDateFrom").addEventListener("change",renderAll);
 $("fDateTo").addEventListener("change",renderAll);
 
-function renderAll(){ renderStats(); renderReasons(); renderTable(); }
+function renderAll(){ renderStats(); renderInsights(); renderReasons(); renderTable(); }
+
+/* Build a plain-language performance narrative from the calls in the active date range (and company
+   filter). Explains booking performance, WHY calls didn't convert, and date-range context. Recomputes
+   on every filter change so it always reflects what the user is looking at. */
+function renderInsights(){
+  const scoped=callsInDateRange();
+  const a=scoped.filter(c=>c.analysis).map(c=>c.analysis);
+  const txt=$("insText"), tags=$("insTags"), rngEl=$("insRange");
+  const pct=(n,d)=>d?Math.round(n/d*100):0;
+  const cnt=r=>a.filter(x=>x.invalid_reason===r).length;
+
+  // Date-range span (actual first/last call date in scope) + a busiest-day readout.
+  const dates=scoped.map(c=>new Date(c.startTime)).filter(d=>!isNaN(d)).sort((x,y)=>x-y);
+  const fmtD=d=>d.toLocaleDateString([], {month:"short",day:"numeric",year:"numeric"});
+  const rangeLabel = dates.length ? (fmtD(dates[0])===fmtD(dates[dates.length-1]) ? fmtD(dates[0]) : `${fmtD(dates[0])} – ${fmtD(dates[dates.length-1])}`) : "—";
+  const dayFloor=d=>new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime();
+  const spanDays = dates.length ? Math.round((dayFloor(dates[dates.length-1])-dayFloor(dates[0]))/86400000)+1 : 0;
+  const byDay={}; dates.forEach(d=>{ const k=d.toLocaleDateString([], {weekday:"short",month:"short",day:"numeric"}); byDay[k]=(byDay[k]||0)+1; });
+  const busiest=Object.entries(byDay).sort((x,y)=>y[1]-x[1])[0];
+
+  rngEl.textContent = dates.length ? `${rangeLabel} · ${spanDays} day${spanDays>1?"s":""}` : "";
+
+  if(!a.length){
+    txt.innerHTML = scoped.length
+      ? `<b>${scoped.length}</b> call${scoped.length>1?"s":""} in this range are not analyzed yet — run the analysis (upload auto-runs the offline engine, or add an API key for AI) to see booking performance and the reasons calls didn't convert.`
+      : `No calls fall in the selected date range. Widen the range or clear the company filter to see insights.`;
+    tags.innerHTML=""; return;
+  }
+
+  const total=scoped.length, analyzed=a.length;
+  const booked=a.filter(x=>x.booking_status==="Booked").length;
+  const notBooked=a.filter(x=>x.booking_status==="Not Booked").length;
+  const bookable=booked+notBooked;
+  const rate=pct(booked,bookable);
+  // Answered vs unanswered (missed/abandoned never reach an agent — a pure answer-rate problem).
+  const missed=cnt("Missed"), abandoned=cnt("Abandoned"), unanswered=missed+abandoned;
+  const answered=analyzed-unanswered;
+  // Why service calls didn't book.
+  const notAvail=cnt("Not Available"), cancelled=cnt("Cancelled"), disconnected=cnt("Disconnected");
+  // Non-lead noise.
+  const spam=cnt("Spam"), marketing=cnt("Marketing"), jobApp=cnt("Job Application"),
+        wrongNum=cnt("Wrong Number"), incorrect=cnt("Incorrect Business");
+  const nonLead=spam+marketing+jobApp+wrongNum+incorrect;
+  // Genuine leads that were answered but didn't book (Valid Call / Not Booked = follow-ups, undecided, comparison shoppers).
+  const validNotBooked=a.filter(x=>x.invalid_reason==="Valid Call" && x.booking_status==="Not Booked").length;
+  const firstTime=scoped.filter(c=>/^(true|yes|1)$/i.test((c.firstTime||"").trim())).length;
+  const rude=a.filter(x=>x.agent_tone==="Rude").length, curt=a.filter(x=>x.agent_tone==="Curt").length;
+
+  // Rank the reasons calls did NOT book, largest first, for the "why" sentence.
+  const missReasons=[
+    ["went unanswered (missed or abandoned before an agent picked up)", unanswered],
+    ["were spam, sales/vendor, job-seeker, wrong-number, or wrong-business calls that were never real booking opportunities", nonLead],
+    ["dropped or disconnected before reaching a clear outcome", disconnected],
+    ["couldn't be scheduled when the caller needed it (no availability, or the caller declined the offered time)", notAvail],
+    ["were existing appointments the caller called in to cancel", cancelled],
+    ["were genuine leads that engaged but left without committing (follow-ups, comparison shoppers, or still deciding)", validNotBooked],
+  ].filter(x=>x[1]>0).sort((x,y)=>y[1]-x[1]);
+
+  // A truer conversion denominator: only genuine service leads (excludes spam/wrong-number/job/marketing,
+  // unanswered, and content-less dropped calls).
+  const genuineLeads=booked+validNotBooked+notAvail+cancelled;
+  const leadRate=pct(booked,genuineLeads);
+
+  const S=[];
+  S.push(`Across <b>${rangeLabel}</b>${spanDays>1?` (${spanDays} days)`:""}, this account received <b>${total}</b> call${total>1?"s":""}${analyzed<total?`, of which <b>${analyzed}</b> have been analyzed`:""}.`);
+  S.push(`Of these, <b>${booked}</b> booked an appointment — a <span class="${rate>=50?"up":"down"}">${rate}% booking rate</span> across every call — while <b>${notBooked}</b> did not book.`);
+  if(genuineLeads>booked) S.push(`Setting aside spam, wrong numbers, unanswered, and content-less dropped calls, about <b>${genuineLeads}</b> were genuine service leads, of which <b>${booked}</b> converted — a truer <span class="${leadRate>=50?"up":"down"}">${leadRate}% lead-conversion rate</span>.`);
+  if(unanswered) S.push(`<b>${unanswered}</b> call${unanswered>1?"s":""} (<span class="down">${pct(unanswered,analyzed)}%</span>) never reached an agent at all — ${missed} missed and ${abandoned} abandoned — representing leads lost before the conversation even started.`);
+  if(missReasons.length){
+    const top=missReasons[0];
+    S.push(`The single biggest reason calls didn't book is that <b>${top[1]}</b> ${top[0]}.`);
+    if(missReasons[1]) S.push(`The next most common were the <b>${missReasons[1][1]}</b> call${missReasons[1][1]>1?"s":""} that ${missReasons[1][0]}${missReasons[2]?`, followed by <b>${missReasons[2][1]}</b> that ${missReasons[2][0]}`:""}.`);
+  }
+  if(notAvail||cancelled) S.push(`Focusing on recoverable losses, <b>${notAvail}</b> service call${notAvail!==1?"s":""} slipped away over scheduling or availability${cancelled?`, and <b>${cancelled}</b> booked job${cancelled>1?"s were":" was"} cancelled`:""} — the clearest opportunities to win back with faster availability or a follow-up call.`);
+  if(validNotBooked) S.push(`Another <b>${validNotBooked}</b> engaged lead${validNotBooked>1?"s":""} talked to an agent but left without booking, so a same-day callback on those could lift the conversion rate directly.`);
+  S.push(`Lead quality in this window was ${pct(nonLead,analyzed)}% non-opportunity (spam, sales, job seekers, wrong numbers), and <b>${firstTime}</b> of the callers (<b>${pct(firstTime,total)}%</b>) were first-time callers${busiest?`; the busiest day was <b>${busiest[0]}</b> with ${busiest[1]} call${busiest[1]>1?"s":""}`:""}.`);
+  if(rude||curt) S.push(`On service quality, <span class="down">${rude+curt}</span> call${rude+curt>1?"s were":" was"} flagged for agent tone (${rude} rude, ${curt} curt) and worth reviewing.`);
+  else S.push(`No agent-tone problems were flagged in this range, so call handling held up on the calls that were answered.`);
+
+  txt.innerHTML=S.join(" ");
+
+  const T=[
+    ["Booking rate", rate+"%"],
+    ["Booked", booked],
+    ["Didn't book", notBooked],
+    ["Unanswered", unanswered],
+    ["Not Available", notAvail],
+    ["Cancelled", cancelled],
+    ["Non-lead", nonLead],
+    ["First-time", firstTime],
+  ];
+  tags.innerHTML=T.map(([k,v])=>`<span class="ins-tag">${k} <b>${v}</b></span>`).join("");
+}
 
 // Returns [start,end] Date bounds (either side may be null = unbounded) for a date-range preset,
 // or null when no date filtering should apply ("All dates", or "Custom" with both fields empty).
