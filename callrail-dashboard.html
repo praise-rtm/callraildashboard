@@ -332,7 +332,7 @@ const TONE_CLASS = {"Friendly":"t-friendly","Professional":"t-pro","Neutral":"t-
 
 // Bump this version whenever classification logic changes, so stale cached results
 // from an older ruleset are discarded instead of silently reused.
-const LS_KEY = "callrail_analysis_v124";
+const LS_KEY = "callrail_analysis_v126";
 const LS_APIKEY = "callrail_api_key";
 const LS_MODEL = "callrail_model";
 
@@ -892,6 +892,10 @@ function detectScheduledTime(call){
     const lc=(text||"").toLowerCase();
     const dm=lc.match(/\b(today|tomorrow|this (?:morning|afternoon|evening))\b/);
     if(dm) return dm[1];
+    // An explicit day-of-month ("the 10th", "Monday the 10th") is preferred over a bare weekday name,
+    // because it resolves to a real calendar date (resolveSchedDate turns "the 10th" into "Aug 10, 2026").
+    const wdNth=lc.match(/\b(?:(?:next\s+)?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s+)?the\s+(\d{1,2})(st|nd|rd|th)\b/);
+    if(wdNth) return "the "+wdNth[1]+wdNth[2];
     const wd=lc.match(/\b(next\s+)?(monday|tuesday|wednesday|thursday|friday|saturday|sunday)(\s+(?:morning|afternoon|evening))?\b/);
     if(wd) return wd[0].replace(/\s+/g," ").trim();
     const mo=(text||"").match(/\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}(?:st|nd|rd|th)?\b/i);
@@ -916,8 +920,18 @@ function detectScheduledTime(call){
     if(winLabel) return cap(winLabel);
     return "";
   };
-  // prefer the dispatcher note (states the appointment cleanly), then the transcript
-  return from(call.note||"") || from(call.transcription||"") || "";
+  // Prefer the slot named in the booking CONFIRMATION ("I have you set for next Monday the 10th…") so a
+  // day the caller DECLINED earlier ("Thursday I'm out of town") is never mistaken for the booked date.
+  const confirmSlot=(src)=>{
+    if(!src) return "";
+    const cue=/(?:i have you|i'?ve got you|we have you|you'?re) (?:all )?set(?: up)?(?: for)?|(?:get|got|getting) you set(?: up)?(?: for)?|set you (?:up )?for|scheduled you for|booked you for|book you for|you'?re booked for|you'?re scheduled for|have you (?:down|scheduled|booked) for/gi;
+    let m,last=null;
+    while((m=cue.exec(src))!==null) last=m;
+    if(!last) return "";
+    return from(src.slice(last.index, last.index+120));   // the agreed day/window is stated right after the cue
+  };
+  // dispatcher note (cleanest) → the confirmed slot → anywhere in the transcript
+  return from(call.note||"") || confirmSlot(call.transcription||"") || from(call.transcription||"") || "";
 }
 
 /* Convert a relative day ("Today", "Tomorrow", "This morning") into an actual date, based on the
@@ -928,6 +942,16 @@ function resolveSchedDate(label, startTime){
   if(!d || isNaN(d)) return label;
   const fmt=dd=>dd.toLocaleDateString([], {month:"short",day:"numeric",year:"numeric"});
   const tomorrow=()=>{ const x=new Date(d.getTime()); x.setDate(x.getDate()+1); return x; };
+  // "the 10th" / "Monday the 10th" → the next calendar date with that day-of-month, on/after the call date.
+  const nth=label.match(/^(?:(?:next\s+)?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s+)?the\s+(\d{1,2})(?:st|nd|rd|th)\b/i);
+  if(nth){
+    const dom=parseInt(nth[1],10);
+    if(dom>=1 && dom<=31){
+      const x=new Date(d.getTime());
+      for(let i=0;i<370 && x.getDate()!==dom;i++) x.setDate(x.getDate()+1);
+      if(x.getDate()===dom) return label.replace(nth[0], fmt(x));
+    }
+  }
   return label
     .replace(/^today\b/i, fmt(d))
     .replace(/^this (morning|afternoon|evening)\b/i, (m,p)=>fmt(d)+", "+p)
@@ -1382,7 +1406,7 @@ function classifyHeuristic(call){
   // appointment"). Making it optional matched the bare noun phrase "a scheduled appointment", so a caller
   // merely REFERRING to their existing appointment ("I have a scheduled appointment for tomorrow. Can you
   // cancel?") was read as a newly-confirmed booking — which then suppressed the "Cancelled" result.
-  const bookingConfirmed = /appointment (was |is |has been )?(set|scheduled|booked|confirmed|arranged)|(set|scheduled|booked|arranged) (up )?(an|the|your|you an|you the) appointment|arrangements (are|were) made|booked you (in|for|today)|you'?re booked (in|for|today)|got you (down|scheduled|booked|on the schedule)|(you|we)'?re all set|(get|got) (this|it|you|that|everything) (all )?(set up|scheduled|booked|arranged)|put (you|it|him|her) (down|under|on the schedule)|i (will|'?ll|'?m going to|'?m gonna) (have|get|send|put|schedule)[^.]{0,25}(there|out|over|down|come|between|today|tomorrow|this|scheduled|set)|(someone|somebody) (will|is going to|'?s going to) (be there|come out|arrive|head)|(technician|tech) (will|'?s going to) (arrive|be there|come|head)|(is|are|they'?re) coming (out )?(today|tomorrow|between|this)|(is|are|they'?re)(?: supposed to be)? going over (today|tomorrow|this)|(we'?ll |\bi'?ll )see you (then|tomorrow|on |this |at )|see you (then|tomorrow|on the)|look forward to seeing you|caller (?:agreed|acknowledged|confirmed) (?:to|with)?[^.]{0,15}(?:appointment|schedul\w*|booking|time slot|visit)|can be scheduled (for )?(today|tomorrow|this (week|afternoon|morning|evening)|on \w+day)|(is|are|they'?re|he'?s|she'?s) on (?:the|our) schedule( right now)?|let'?s go ahead and (?:also )?(?:tentatively )?schedule|go ahead and (?:tentatively )?schedule (?:that|it|you|this)|tentatively schedule (?:that|it|you|this)|put[^.]{0,20}service call[^.]{0,10}\bin\b|put in[^.]{0,20}service call|i could (?:probably )?(?:do it|get (?:someone|somebody) out(?: there)?|come out|send (?:someone|somebody) out) (?:today|tomorrow|this afternoon|this morning|monday|tuesday|wednesday|thursday|friday|saturday|sunday)|(?:i'?ve|i have) got (?:them|him|her|someone|somebody|it) coming (?:out)?[^.]{0,25}(?:today|tomorrow|this \w+day|between)|probably[\s\S]{0,20}(?:tomorrow|today|this (?:morning|afternoon|evening)|on \w+day)[^.]{0,20}(?:after|before|around|between)/i.test(blob)
+  const bookingConfirmed = /appointment (was |is |has been )?(set|scheduled|booked|confirmed|arranged)|(set|scheduled|booked|arranged) (up )?(an|the|your|you an|you the) appointment|arrangements (are|were) made|booked you (in|for|today)|you'?re booked (in|for|today)|got you (down|scheduled|booked|on the schedule)|(?:i have|i'?ve|we have|we'?ve|i'?ll get|we'?ll get|let me get|i'?m going to get|got|getting) you (?:all )?set(?: up)?(?: for| tomorrow| today| on | at | this | next| between)|(?:have|got) you (?:down|scheduled|booked) (?:for |tomorrow|today|on |at |this |next )|(you|we)'?re all set|(get|got) (this|it|you|that|everything) (all )?(set up|scheduled|booked|arranged)|put (you|it|him|her) (down|under|on the schedule)|i (will|'?ll|'?m going to|'?m gonna) (have|get|send|put|schedule)[^.]{0,25}(there|out|over|down|come|between|today|tomorrow|this|scheduled|set)|(someone|somebody) (will|is going to|'?s going to) (be there|come out|arrive|head)|(technician|tech) (will|'?s going to) (arrive|be there|come|head)|(is|are|they'?re) coming (out )?(today|tomorrow|between|this)|(is|are|they'?re)(?: supposed to be)? going over (today|tomorrow|this)|(we'?ll |\bi'?ll )see you (then|tomorrow|on |this |at )|see you (then|tomorrow|on the)|look forward to seeing you|caller (?:agreed|acknowledged|confirmed) (?:to|with)?[^.]{0,15}(?:appointment|schedul\w*|booking|time slot|visit)|can be scheduled (for )?(today|tomorrow|this (week|afternoon|morning|evening)|on \w+day)|(is|are|they'?re|he'?s|she'?s) on (?:the|our) schedule( right now)?|let'?s go ahead and (?:also )?(?:tentatively )?schedule|go ahead and (?:tentatively )?schedule (?:that|it|you|this)|tentatively schedule (?:that|it|you|this)|put[^.]{0,20}service call[^.]{0,10}\bin\b|put in[^.]{0,20}service call|i could (?:probably )?(?:do it|get (?:someone|somebody) out(?: there)?|come out|send (?:someone|somebody) out) (?:today|tomorrow|this afternoon|this morning|monday|tuesday|wednesday|thursday|friday|saturday|sunday)|(?:i'?ve|i have) got (?:them|him|her|someone|somebody|it) coming (?:out)?[^.]{0,25}(?:today|tomorrow|this \w+day|between)|probably[\s\S]{0,20}(?:tomorrow|today|this (?:morning|afternoon|evening)|on \w+day)[^.]{0,20}(?:after|before|around|between)/i.test(blob)
     || /(?:^|\|)\s*booked\b/i.test(call.note||"");   // dispatcher-note "Booked today" tag (browser-safe, no lookbehind)
   // Simpler bare-keyword booking signal used only by the non-isService fallback paths further down
   // (very-short-call / no-clear-conclusion / natural-closing-without-a-topic-match) — folds in the much
@@ -1404,7 +1428,7 @@ function classifyHeuristic(call){
   // Checked against the AGENT's own words only (not the full caller+agent blob) — a genuine callback
   // promise must come from the business side. Without this, a CALLER saying "I will call you back"
   // (meaning she'll call the business back) was read as if the agent had promised to call HER back.
-  const callbackPromised = /(call|contact|reach) (you|the caller|him|her|them) back|someone will call (you )?back|give you a call( back)?|\bi'?ll call you( back)?|reach back out|call you right back|call (and|to) confirm|call you on (the|your) way|have (?:them|him|her|someone|somebody|my \w+|our \w+|the \w+) call you|(?:receive|get) a call from (?:them|us|the team|dispatch|our team|my \w+|our \w+)|have (?:them|him|her|someone|somebody|my \w+|our \w+|the \w+) reach out(?: to you)?|\bi'?ll let you know|(?:then|and) (?:i can|i'?ll) let you know/i.test(agentText);
+  const callbackPromised = /(call|contact|reach) (you|the caller|him|her|them) back|someone will call (you )?back|give you a call( back)?|\bi'?ll call you( back)?|reach back out|call you right back|call (and|to) confirm|call you on (the|your) way|have (?:them|him|her|someone|somebody|my \w+|our \w+|the \w+) call you|(?:receive|get) a call from (?:them|us|the team|dispatch|our team|my \w+|our \w+)|have (?:them|him|her|someone|somebody|my \w+|our \w+|the \w+) reach out(?: to you)?|\bi'?ll let you know|(?:then|and) (?:i can|i'?ll) let you know|(?:dispatch(?:er)?|our team|the office|someone|somebody|they) (?:will |is going to |'?s going to |'?ll )?(?:reach out|call|contact)[^.]{0,30}(?:confirm|in the morning|shortly)|reach out[^.]{0,25}confirm/i.test(agentText);
   const committed = hasCaller("book me","book it","let's do it","let's do that","i'll take it","yes let's","put me down","schedule me","set it up","go ahead and schedule","go ahead and book");
   // Caller agreed to the agent's offer (used only when the agent actually offered to book).
   const callerAgreed = committed || hasCaller("great","perfect","sounds good","sounds great","okay","that works","that'll work",
