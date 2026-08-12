@@ -353,7 +353,7 @@ const TONE_CLASS = {"Friendly":"t-friendly","Professional":"t-pro","Neutral":"t-
 
 // Bump this version whenever classification logic changes, so stale cached results
 // from an older ruleset are discarded instead of silently reused.
-const LS_KEY = "callrail_analysis_v129";
+const LS_KEY = "callrail_analysis_v130";
 const LS_APIKEY = "callrail_api_key";
 const LS_MODEL = "callrail_model";
 
@@ -1519,6 +1519,11 @@ function classifyHeuristic(call){
     "digital marketing","web design","website design","seo services","search engine optimization",
     "social media marketing","increase your leads","increase your visibility","get more customers",
     "get more leads","grow your business","marketing services","advertising services",
+    // Lead-gen / marketing-service pitches (Angi, HomeAdvisor, Thumbtack, generic agencies). A genuine
+    // customer never asks the business whether a service "would be of interest to YOU" — that phrasing,
+    // and "lead generation", are vendor-pitch tells regardless of how fast the agent hangs up.
+    "lead generation","lead gen","generate leads","generate more leads","would be of interest",
+    "be of interest to you","of interest to you","interested in lead","help you get more leads",
     "businesses like yours","local businesses in your area","boost your rankings","boost your visibility",
     "improve your ranking","an offer for your business","we noticed your business","opportunity for your business",
     "reaching out to businesses","specialize in helping businesses","calling businesses in the area",
