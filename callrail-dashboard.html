@@ -180,6 +180,62 @@ tbody tr.rude-row:hover{background:#ffecec}
 .row-count{font-size:12px;font-weight:700;color:var(--text-muted)}
 .row-count b{color:var(--primary)}
 @media(max-width:820px){.detail-inner{grid-template-columns:1fr}.field.key input{min-width:200px}}
+
+/* ===== LEFT NAV + PAGE LAYOUT ===== */
+.layout{display:flex;align-items:flex-start}
+.sidebar{position:sticky;top:var(--header-h);align-self:flex-start;height:calc(100vh - var(--header-h));
+  width:188px;min-width:188px;background:linear-gradient(180deg,var(--navy),#06304a);display:flex;flex-direction:column;
+  gap:5px;padding:16px 11px;z-index:90}
+.nav-item{display:flex;align-items:center;gap:11px;width:100%;text-align:left;padding:12px 13px;border-radius:9px;
+  font-family:inherit;font-size:13.5px;font-weight:700;color:rgba(255,255,255,.72);background:transparent;border:none;
+  cursor:pointer;transition:.15s}
+.nav-item:hover{background:rgba(255,255,255,.09);color:#fff}
+.nav-item.active{background:var(--accent);color:#fff;box-shadow:0 4px 14px rgba(249,158,35,.35)}
+.nav-item .ic{font-size:16px;line-height:1}
+.nav-cap{color:rgba(255,255,255,.4);font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.8px;
+  padding:4px 13px 8px}
+.main{flex:1;min-width:0}
+@media(max-width:760px){.layout{flex-direction:column}.sidebar{flex-direction:row;width:100%;min-width:0;height:auto;
+  position:static;overflow-x:auto}.nav-cap{display:none}}
+
+/* ===== OVERVIEW ===== */
+.ov-controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:16px}
+.ov-title{font-size:19px;font-weight:800;color:var(--primary)}
+.ov-title span{color:var(--text-muted);font-size:12.5px;font-weight:600;margin-left:9px}
+.ov-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
+.ov-kpi{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;border-top:3px solid var(--accent)}
+.ov-kpi .v{font-size:25px;font-weight:800;color:var(--primary);line-height:1}
+.ov-kpi .l{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--text-muted);margin-top:7px}
+.ov-kpi .s{font-size:11px;color:var(--text-muted);margin-top:3px}
+.ov-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-bottom:16px}
+.ov-grid .full{grid-column:1 / -1}
+@media(max-width:900px){.ov-grid{grid-template-columns:1fr}}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px}
+.card h3{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--primary);
+  margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.card h3 .sub{margin-left:auto;font-size:11px;color:var(--text-muted);font-weight:600;text-transform:none;letter-spacing:0}
+.chart{overflow-x:auto}
+.chart svg{display:block;width:100%;height:auto;overflow:visible}
+/* Cap bar-chart height so full-width cards don't stretch tall when scaled to the container width. */
+#chPerDay svg,#chDow svg,#chTod svg{max-height:250px}
+.chart-empty{color:var(--text-muted);font-size:12px;padding:24px 0;text-align:center}
+.legend{display:flex;flex-wrap:wrap;gap:12px;margin-top:12px}
+.legend span{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--text)}
+.legend i{width:11px;height:11px;border-radius:3px;display:inline-block}
+.ov-empty{text-align:center;padding:64px 20px;color:var(--text-muted)}
+.ov-empty .big{font-size:46px}
+.ov-empty h2{font-size:17px;color:var(--text);margin:12px 0 6px}
+.ins-p{font-size:13.5px;line-height:1.7;color:var(--text);margin:0}
+.ins-p b{color:var(--primary);font-weight:700}.ins-p .up{color:#128a4b;font-weight:700}.ins-p .down{color:#c0392b;font-weight:700}
+.suggest{list-style:none;display:flex;flex-direction:column;gap:11px;margin:0;padding:0}
+.suggest li{display:flex;gap:11px;font-size:13px;line-height:1.55;color:var(--text)}
+.suggest li .ic{flex:none;width:24px;height:24px;border-radius:7px;display:flex;align-items:center;justify-content:center;
+  font-size:13px;background:var(--surface2);border:1px solid var(--border)}
+.suggest li b{color:var(--primary)}
+.ins-tags{display:flex;flex-wrap:wrap;gap:7px}
+.ins-tag{font-size:11px;font-weight:700;padding:4px 10px;border-radius:20px;background:var(--surface2);
+  border:1px solid var(--border);color:var(--text-muted);white-space:nowrap}
+.ins-tag b{color:var(--primary)}
 </style>
 </head>
 <body>
@@ -195,6 +251,13 @@ tbody tr.rude-row:hover{background:#ffecec}
   </div>
 </div>
 
+<div class="layout">
+  <nav class="sidebar">
+    <div class="nav-cap">Pages</div>
+    <button class="nav-item active" data-page="overview"><span class="ic">&#128202;</span> Overview</button>
+    <button class="nav-item" data-page="calllog"><span class="ic">&#128203;</span> Call Log</button>
+  </nav>
+  <div class="main">
 <div class="wrap">
 
   <!-- CONFIG -->
@@ -242,6 +305,49 @@ tbody tr.rude-row:hover{background:#ffecec}
     </div>
   </div>
 
+  <!-- ===== OVERVIEW PAGE ===== -->
+  <div id="pageOverview" class="page">
+    <div class="ov-controls">
+      <div class="ov-title">Account Overview <span id="ovRangeLbl"></span></div>
+      <div style="flex:1"></div>
+      <select class="tsel" id="ovCompany"><option value="">All companies</option></select>
+      <select class="tsel" id="ovDateRange">
+        <option value="">All dates</option><option value="today">Today</option><option value="yesterday">Yesterday</option>
+        <option value="this_week">This week</option><option value="last_week">Last week</option>
+        <option value="this_month">This month</option><option value="last_month">Last month</option>
+        <option value="this_year">This year</option><option value="last_year">Last year</option>
+        <option value="custom">Custom range&hellip;</option>
+      </select>
+      <input type="date" class="tsel" id="ovFrom" style="display:none" />
+      <input type="date" class="tsel" id="ovTo" style="display:none" />
+    </div>
+
+    <div class="ov-empty" id="ovEmpty">
+      <div class="big">&#128202;</div><h2>No call data yet</h2>
+      <p>Upload a CallRail export above to see your account overview.</p>
+    </div>
+
+    <div id="ovBody" style="display:none">
+      <div class="ov-kpis" id="ovKpis"></div>
+      <div class="ov-grid">
+        <div class="card"><h3>Booked vs. Not Booked</h3><div class="chart" id="chBooked"></div></div>
+        <div class="card"><h3>Call Categories</h3><div class="chart" id="chCats"></div></div>
+        <div class="card full"><h3>Leads per Day <span class="sub" id="chDaySub"></span></h3><div class="chart" id="chPerDay"></div></div>
+        <div class="card"><h3>Calls by Day of Week</h3><div class="chart" id="chDow"></div></div>
+        <div class="card"><h3>Busiest Time to Call</h3><div class="chart" id="chTod"></div></div>
+      </div>
+      <div class="card full" style="margin-bottom:16px">
+        <h3>Performance Insights <span class="sub" id="insRange"></span></h3>
+        <p id="insText" class="ins-p"></p>
+        <div class="ins-tags" id="insTags" style="margin-top:11px"></div>
+      </div>
+      <div class="card full"><h3>Suggestions &amp; Recommendations</h3><ul class="suggest" id="ovSuggest"></ul></div>
+    </div>
+  </div>
+
+  <!-- ===== CALL LOG PAGE ===== -->
+  <div id="pageCallLog" class="page" style="display:none">
+
   <!-- STATS -->
   <div class="stats" id="stats" style="display:none">
     <div class="stat blue"><div class="stat-val" id="stTotal">0</div><div class="stat-label">Total Calls</div><div class="stat-sub" id="stAnalyzed">0 analyzed</div></div>
@@ -250,13 +356,6 @@ tbody tr.rude-row:hover{background:#ffecec}
     <div class="stat green"><div class="stat-val" id="stBooked">0</div><div class="stat-label">Booked</div><div class="stat-sub" id="stBookRate">&mdash;</div></div>
     <div class="stat red"><div class="stat-val" id="stNotBooked">0</div><div class="stat-label">Not Booked</div><div class="stat-sub">service calls w/o appt</div></div>
     <div class="stat red"><div class="stat-val" id="stRude">0</div><div class="stat-label">Tone</div><div class="stat-sub" id="stRudeSub">agent tone flags</div></div>
-  </div>
-
-  <!-- PERFORMANCE INSIGHTS -->
-  <div class="insights" id="insightsCard" style="display:none">
-    <h3>Performance Insights <span class="rng" id="insRange"></span></h3>
-    <p id="insText"></p>
-    <div class="ins-tags" id="insTags"></div>
   </div>
 
   <div class="reasons" id="reasonsCard" style="display:none">
@@ -325,7 +424,11 @@ tbody tr.rude-row:hover{background:#ffecec}
       </table>
     </div>
   </div>
-</div>
+
+  </div><!-- /pageCallLog -->
+</div><!-- /wrap -->
+  </div><!-- /main -->
+</div><!-- /layout -->
 
 <div class="toast" id="toast"></div>
 
@@ -353,7 +456,7 @@ const TONE_CLASS = {"Friendly":"t-friendly","Professional":"t-pro","Neutral":"t-
 
 // Bump this version whenever classification logic changes, so stale cached results
 // from an older ruleset are discarded instead of silently reused.
-const LS_KEY = "callrail_analysis_v131";
+const LS_KEY = "callrail_analysis_v132";
 const LS_APIKEY = "callrail_api_key";
 const LS_MODEL = "callrail_model";
 
@@ -411,7 +514,6 @@ function handleFile(file){
       buildCompanyFilter();
       renderAll();
       $("stats").style.display="grid";
-      $("insightsCard").style.display="block";
       $("reasonsCard").style.display="block";
       $("toolbar").style.display="flex";
       $("dateToolbar").style.display="flex";
@@ -494,9 +596,10 @@ function buildStatusFilter(){
   sel.innerHTML='<option value="">All CallRail statuses</option>'+set.map(s=>`<option>${esc(s)}</option>`).join("");
 }
 function buildCompanyFilter(){
-  const sel=$("fCompany");
   const set=[...new Set(CALLS.map(c=>c.company).filter(Boolean))].sort();
-  sel.innerHTML='<option value="">All companies</option>'+set.map(s=>`<option>${esc(s)}</option>`).join("");
+  const opts='<option value="">All companies</option>'+set.map(s=>`<option>${esc(s)}</option>`).join("");
+  $("fCompany").innerHTML=opts;
+  if($("ovCompany")) $("ovCompany").innerHTML=opts;   // Overview shares the same company list
 }
 
 /* ============================================================
@@ -1951,56 +2054,53 @@ $("fDateRange").addEventListener("change",()=>{
 $("fDateFrom").addEventListener("change",renderAll);
 $("fDateTo").addEventListener("change",renderAll);
 
-function renderAll(){ renderStats(); renderInsights(); renderReasons(); renderTable(); }
+function renderAll(){ renderStats(); renderReasons(); renderTable(); renderOverview(); }
 
-/* Build a plain-language performance narrative from the calls in the active date range (and company
-   filter). Explains booking performance, WHY calls didn't convert, and date-range context. Recomputes
-   on every filter change so it always reflects what the user is looking at. */
-function renderInsights(){
-  const scoped=callsInDateRange();
+/* ===== OVERVIEW PAGE ===== */
+// Overview has its OWN date-range + company controls (independent of the Call Log filters).
+function ovBounds(){ return dateRangeBounds($("ovDateRange").value, $("ovFrom").value, $("ovTo").value); }
+function ovCalls(){
+  const bounds=ovBounds(), fco=$("ovCompany").value;
+  return CALLS.filter(c=>{
+    if(fco && c.company!==fco) return false;
+    if(bounds){ const d=new Date(c.startTime); if(isNaN(d)) return false;
+      if(bounds[0] && d<bounds[0]) return false; if(bounds[1] && d>bounds[1]) return false; }
+    return true;
+  });
+}
+
+/* Pure: compute every performance metric + the narrative/tags from a scoped array of calls.
+   Returns {rangeLabel, spanDays, busiest, html, tags, m}. Used by the Overview page. */
+function buildInsights(scoped){
   const a=scoped.filter(c=>c.analysis).map(c=>c.analysis);
-  const txt=$("insText"), tags=$("insTags"), rngEl=$("insRange");
   const pct=(n,d)=>d?Math.round(n/d*100):0;
   const cnt=r=>a.filter(x=>x.invalid_reason===r).length;
-
-  // Date-range span (actual first/last call date in scope) + a busiest-day readout.
   const dates=scoped.map(c=>new Date(c.startTime)).filter(d=>!isNaN(d)).sort((x,y)=>x-y);
   const fmtD=d=>d.toLocaleDateString([], {month:"short",day:"numeric",year:"numeric"});
   const rangeLabel = dates.length ? (fmtD(dates[0])===fmtD(dates[dates.length-1]) ? fmtD(dates[0]) : `${fmtD(dates[0])} – ${fmtD(dates[dates.length-1])}`) : "—";
   const dayFloor=d=>new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime();
   const spanDays = dates.length ? Math.round((dayFloor(dates[dates.length-1])-dayFloor(dates[0]))/86400000)+1 : 0;
   const byDay={}; dates.forEach(d=>{ const k=d.toLocaleDateString([], {weekday:"short",month:"short",day:"numeric"}); byDay[k]=(byDay[k]||0)+1; });
-  const busiest=Object.entries(byDay).sort((x,y)=>y[1]-x[1])[0];
-
-  rngEl.textContent = dates.length ? `${rangeLabel} · ${spanDays} day${spanDays>1?"s":""}` : "";
-
-  if(!a.length){
-    txt.innerHTML = scoped.length
-      ? `<b>${scoped.length}</b> call${scoped.length>1?"s":""} in this range are not analyzed yet — run the analysis (upload auto-runs the offline engine, or add an API key for AI) to see booking performance and the reasons calls didn't convert.`
-      : `No calls fall in the selected date range. Widen the range or clear the company filter to see insights.`;
-    tags.innerHTML=""; return;
-  }
+  const busiest=Object.entries(byDay).sort((x,y)=>y[1]-x[1])[0]||null;
 
   const total=scoped.length, analyzed=a.length;
   const booked=a.filter(x=>x.booking_status==="Booked").length;
   const notBooked=a.filter(x=>x.booking_status==="Not Booked").length;
-  const bookable=booked+notBooked;
-  const rate=pct(booked,bookable);
-  // Answered vs unanswered (missed/abandoned never reach an agent — a pure answer-rate problem).
+  const bookable=booked+notBooked, rate=pct(booked,bookable);
   const missed=cnt("Missed"), abandoned=cnt("Abandoned"), unanswered=missed+abandoned;
-  const answered=analyzed-unanswered;
-  // Why service calls didn't book.
   const notAvail=cnt("Not Available"), cancelled=cnt("Cancelled"), disconnected=cnt("Disconnected");
-  // Non-lead noise.
-  const spam=cnt("Spam"), marketing=cnt("Marketing"), jobApp=cnt("Job Application"),
-        wrongNum=cnt("Wrong Number"), incorrect=cnt("Incorrect Business");
+  const spam=cnt("Spam"), marketing=cnt("Marketing"), jobApp=cnt("Job Application"), wrongNum=cnt("Wrong Number"), incorrect=cnt("Incorrect Business");
   const nonLead=spam+marketing+jobApp+wrongNum+incorrect;
-  // Genuine leads that were answered but didn't book (Valid Call / Not Booked = follow-ups, undecided, comparison shoppers).
   const validNotBooked=a.filter(x=>x.invalid_reason==="Valid Call" && x.booking_status==="Not Booked").length;
   const firstTime=scoped.filter(c=>/^(true|yes|1)$/i.test((c.firstTime||"").trim())).length;
   const rude=a.filter(x=>x.agent_tone==="Rude").length, curt=a.filter(x=>x.agent_tone==="Curt").length;
+  const genuineLeads=booked+validNotBooked+notAvail+cancelled, leadRate=pct(booked,genuineLeads);
+  const m={total,analyzed,booked,notBooked,bookable,rate,missed,abandoned,unanswered,notAvail,cancelled,disconnected,
+    spam,marketing,jobApp,wrongNum,incorrect,nonLead,validNotBooked,firstTime,firstPct:pct(firstTime,total),
+    rude,curt,genuineLeads,leadRate,busiestDay:busiest};
 
-  // Rank the reasons calls did NOT book, largest first, for the "why" sentence.
+  if(!a.length) return {rangeLabel,spanDays,busiest,m,html:"No analyzed calls in this range.",tags:""};
+
   const missReasons=[
     ["went unanswered (missed or abandoned before an agent picked up)", unanswered],
     ["were spam, sales/vendor, job-seeker, wrong-number, or wrong-business calls that were never real booking opportunities", nonLead],
@@ -2009,11 +2109,6 @@ function renderInsights(){
     ["were existing appointments the caller called in to cancel", cancelled],
     ["were genuine leads that engaged but left without committing (follow-ups, comparison shoppers, or still deciding)", validNotBooked],
   ].filter(x=>x[1]>0).sort((x,y)=>y[1]-x[1]);
-
-  // A truer conversion denominator: only genuine service leads (excludes spam/wrong-number/job/marketing,
-  // unanswered, and content-less dropped calls).
-  const genuineLeads=booked+validNotBooked+notAvail+cancelled;
-  const leadRate=pct(booked,genuineLeads);
 
   const S=[];
   S.push(`Across <b>${rangeLabel}</b>${spanDays>1?` (${spanDays} days)`:""}, this account received <b>${total}</b> call${total>1?"s":""}${analyzed<total?`, of which <b>${analyzed}</b> have been analyzed`:""}.`);
@@ -2031,20 +2126,149 @@ function renderInsights(){
   if(rude||curt) S.push(`On service quality, <span class="down">${rude+curt}</span> call${rude+curt>1?"s were":" was"} flagged for agent tone (${rude} rude, ${curt} curt) and worth reviewing.`);
   else S.push(`No agent-tone problems were flagged in this range, so call handling held up on the calls that were answered.`);
 
-  txt.innerHTML=S.join(" ");
-
-  const T=[
-    ["Booking rate", rate+"%"],
-    ["Booked", booked],
-    ["Didn't book", notBooked],
-    ["Unanswered", unanswered],
-    ["Not Available", notAvail],
-    ["Cancelled", cancelled],
-    ["Non-lead", nonLead],
-    ["First-time", firstTime],
-  ];
-  tags.innerHTML=T.map(([k,v])=>`<span class="ins-tag">${k} <b>${v}</b></span>`).join("");
+  const T=[["Booking rate",rate+"%"],["Booked",booked],["Didn't book",notBooked],["Unanswered",unanswered],
+    ["Not Available",notAvail],["Cancelled",cancelled],["Non-lead",nonLead],["First-time",firstTime]];
+  return {rangeLabel,spanDays,busiest,m,html:S.join(" "),
+    tags:T.map(([k,v])=>`<span class="ins-tag">${k} <b>${v}</b></span>`).join("")};
 }
+
+/* Data-driven suggestions & recommendations. */
+function buildSuggestions(m, tod){
+  const out=[]; const pct=(n,d)=>d?Math.round(n/d*100):0;
+  if(m.unanswered>0) out.push({icon:"&#128245;",text:`<b>${m.unanswered} call${m.unanswered>1?"s":""} (${pct(m.unanswered,m.total)}%) went unanswered</b> (missed or abandoned). Each is a lost lead — consider extended answering hours, an overflow answering service, or faster pickup at peak times.`});
+  if(m.notAvail>0) out.push({icon:"&#128198;",text:`<b>${m.notAvail} service call${m.notAvail!==1?"s":""} didn't book over availability.</b> Tighter scheduling, a same-day slot held open, or an urgency/cancellation waitlist could recover them.`});
+  if(m.cancelled>0) out.push({icon:"&#128257;",text:`<b>${m.cancelled} appointment${m.cancelled>1?"s were":" was"} cancelled.</b> A confirmation call the day before and a quick reschedule offer can save some of these.`});
+  if(m.validNotBooked>0) out.push({icon:"&#128222;",text:`<b>${m.validNotBooked} engaged lead${m.validNotBooked>1?"s":""} left without booking.</b> A same-day callback to undecided callers and comparison shoppers is the fastest lever on conversion.`});
+  if(tod){ const top=Object.entries(tod).sort((a,b)=>b[1]-a[1])[0]; if(top && top[1]>0){
+    const lbl={Dawn:"Dawn (12–6 AM)",Morning:"Morning (6 AM–12 PM)",Afternoon:"Afternoon (12–6 PM)",Night:"Night (6 PM–12 AM)"}[top[0]];
+    out.push({icon:"&#9200;",text:`Most calls arrive in the <b>${lbl}</b> (${top[1]} calls). Make sure your strongest closers are staffed then.`}); } }
+  if(m.busiestDay) out.push({icon:"&#128197;",text:`Your busiest day is <b>${m.busiestDay[0]}</b> (${m.busiestDay[1]} calls) — schedule enough phone coverage for it.`});
+  if(m.nonLead>0 && pct(m.nonLead,m.analyzed)>=10) out.push({icon:"&#128737;",text:`<b>${pct(m.nonLead,m.analyzed)}% of calls were non-leads</b> (spam, sales, job seekers, wrong numbers). Screening or blocking repeat offenders would cut the noise.`});
+  if(m.bookable>0){ if(m.rate<40) out.push({icon:"&#128200;",text:`The <b>${m.rate}% booking rate</b> has room to grow — review how answered service calls are scripted, quoted, and closed to convert more.`});
+    else out.push({icon:"&#9989;",text:`A <b>${m.rate}% booking rate</b> (${m.leadRate}% of genuine leads) is solid — keep the current call-handling approach.`}); }
+  if((m.rude+m.curt)>0) out.push({icon:"&#127911;",text:`<b>${m.rude+m.curt} call${(m.rude+m.curt)>1?"s were":" was"} flagged for agent tone.</b> Pull those recordings and coach on a warmer, more patient delivery.`});
+  return out;
+}
+
+/* ---- tiny inline-SVG charts (no external libraries) ---- */
+function _svg(w,h,inner,maxw){ return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet" font-family="Montserrat,sans-serif"${maxw?` style="max-width:${maxw}px;margin:0 auto"`:""}>${inner}</svg>`; }
+function donutChart(elId, segs){
+  const el=$(elId); if(!el) return;
+  const total=segs.reduce((s,x)=>s+x.value,0);
+  if(!total){ el.innerHTML='<div class="chart-empty">No data</div>'; return; }
+  const cx=90,cy=90,r=66,sw=28; let ang=-Math.PI/2; const parts=[];
+  segs.forEach(s=>{ if(!s.value) return; const frac=s.value/total;
+    if(frac>=0.9999){ parts.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${s.color}" stroke-width="${sw}"><title>${esc(s.label)}: ${s.value} (100%)</title></circle>`); return; }
+    const a2=ang+frac*2*Math.PI, x1=cx+r*Math.cos(ang), y1=cy+r*Math.sin(ang), x2=cx+r*Math.cos(a2), y2=cy+r*Math.sin(a2), lg=frac>0.5?1:0;
+    parts.push(`<path d="M ${x1.toFixed(2)} ${y1.toFixed(2)} A ${r} ${r} 0 ${lg} 1 ${x2.toFixed(2)} ${y2.toFixed(2)}" fill="none" stroke="${s.color}" stroke-width="${sw}"><title>${esc(s.label)}: ${s.value} (${Math.round(frac*100)}%)</title></path>`);
+    ang=a2; });
+  const inner=`${parts.join("")}<text x="${cx}" y="${cy-2}" text-anchor="middle" font-size="24" font-weight="800" fill="#004b74">${total}</text><text x="${cx}" y="${cy+15}" text-anchor="middle" font-size="10" fill="#64748b">calls</text>`;
+  const legend='<div class="legend">'+segs.map(s=>`<span><i style="background:${s.color}"></i>${esc(s.label)} <b>${s.value}</b> (${Math.round(s.value/total*100)}%)</span>`).join("")+'</div>';
+  el.innerHTML=_svg(180,180,inner,210)+legend;
+}
+function barChart(elId, data){
+  const el=$(elId); if(!el) return;
+  if(!data.length || data.every(d=>!d.value)){ el.innerHTML='<div class="chart-empty">No data</div>'; return; }
+  const H=200, padB=32, padT=16, padL=8, max=Math.max(...data.map(d=>d.value),1);
+  const W=Math.max(320, data.length*54), gap=(W-padL)/data.length, bw=Math.min(46, gap*0.6);
+  const bars=data.map((d,i)=>{ const x=padL+i*gap+(gap-bw)/2, h=(H-padB-padT)*(d.value/max), y=H-padB-h;
+    return `<g><rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="3" fill="${d.color||"#004b74"}"><title>${esc(d.label)}: ${d.value}</title></rect>`+
+      `<text x="${(x+bw/2).toFixed(1)}" y="${(y-5).toFixed(1)}" text-anchor="middle" font-size="10.5" font-weight="700" fill="#1a202c">${d.value||""}</text>`+
+      `<text x="${(x+bw/2).toFixed(1)}" y="${H-padB+15}" text-anchor="middle" font-size="10" fill="#64748b">${esc(d.label)}</text></g>`; }).join("");
+  el.innerHTML=_svg(W,H,bars);
+}
+function hbarChart(elId, data){
+  const el=$(elId); if(!el) return;
+  const rows=data.filter(d=>d.value>0);
+  if(!rows.length){ el.innerHTML='<div class="chart-empty">No data</div>'; return; }
+  const max=Math.max(...rows.map(d=>d.value),1), rh=27, W=380, labelW=118, H=rows.length*rh+4;
+  const bars=rows.map((d,i)=>{ const y=i*rh+2, bw=(W-labelW-42)*(d.value/max);
+    return `<g><text x="${labelW-7}" y="${y+rh/2+4}" text-anchor="end" font-size="11" fill="#1a202c">${esc(d.label)}</text>`+
+      `<rect x="${labelW}" y="${y+5}" width="${Math.max(bw,2).toFixed(1)}" height="${rh-11}" rx="3" fill="${d.color||"#004b74"}"><title>${esc(d.label)}: ${d.value}</title></rect>`+
+      `<text x="${(labelW+Math.max(bw,2)+6).toFixed(1)}" y="${y+rh/2+4}" font-size="11" font-weight="700" fill="#1a202c">${d.value}</text></g>`; }).join("");
+  el.innerHTML=_svg(W,H,bars);
+}
+function stackedPerDay(elId, days){
+  const el=$(elId); if(!el) return;
+  if(!days.length){ el.innerHTML='<div class="chart-empty">No data</div>'; return; }
+  const max=Math.max(...days.map(d=>d.booked+d.other),1), H=210, padB=32, padT=18, padL=8;
+  const W=Math.max(340, days.length*46), gap=(W-padL)/days.length, bw=Math.min(36, gap*0.62);
+  const segs=days.map((d,i)=>{ const x=padL+i*gap+(gap-bw)/2, tot=d.booked+d.other, unit=(H-padB-padT)/max;
+    const bh=d.booked*unit, oh=d.other*unit, by=H-padB-bh, oy=by-oh;
+    return `<g>`+
+      (d.other?`<rect x="${x.toFixed(1)}" y="${oy.toFixed(1)}" width="${bw.toFixed(1)}" height="${oh.toFixed(1)}" fill="#94a3b8"><title>${esc(d.label)}: ${d.other} not booked</title></rect>`:"")+
+      (d.booked?`<rect x="${x.toFixed(1)}" y="${by.toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" fill="#22c55e"><title>${esc(d.label)}: ${d.booked} booked</title></rect>`:"")+
+      `<text x="${(x+bw/2).toFixed(1)}" y="${(oy-5).toFixed(1)}" text-anchor="middle" font-size="9.5" font-weight="700" fill="#1a202c">${tot||""}</text>`+
+      `<text x="${(x+bw/2).toFixed(1)}" y="${H-padB+14}" text-anchor="middle" font-size="9" fill="#64748b">${esc(d.label)}</text></g>`; }).join("");
+  el.innerHTML=_svg(W,H,segs)+'<div class="legend"><span><i style="background:#22c55e"></i>Booked</span><span><i style="background:#94a3b8"></i>Not booked</span></div>';
+}
+
+function renderOverview(){
+  if(!$("pageOverview")) return;
+  const scoped=ovCalls();
+  const a=scoped.filter(c=>c.analysis).map(c=>c.analysis);
+  const empty=$("ovEmpty"), body=$("ovBody");
+  if(!a.length){
+    empty.style.display="block"; body.style.display="none"; $("ovRangeLbl").textContent="";
+    empty.querySelector("p").textContent = CALLS.length
+      ? "No analyzed calls in this range — widen the date range or clear the company filter."
+      : "Upload a CallRail export above to see your account overview.";
+    return;
+  }
+  empty.style.display="none"; body.style.display="block";
+  const ins=buildInsights(scoped), m=ins.m;
+  $("ovRangeLbl").textContent = ins.rangeLabel + (ins.spanDays>1?` · ${ins.spanDays} days`:"");
+
+  $("ovKpis").innerHTML=[
+    ["Total Calls", m.total, ins.rangeLabel],
+    ["Booked", m.booked, m.rate+"% booking rate"],
+    ["Not Booked", m.notBooked, "service calls w/o appt"],
+    ["Lead Conversion", m.leadRate+"%", m.genuineLeads+" genuine leads"],
+    ["Unanswered", m.unanswered, m.missed+" missed · "+m.abandoned+" abandoned"],
+    ["First-Time", m.firstTime, m.firstPct+"% of callers"],
+  ].map(k=>`<div class="ov-kpi"><div class="v">${esc(String(k[1]))}</div><div class="l">${esc(k[0])}</div><div class="s">${esc(String(k[2]))}</div></div>`).join("");
+
+  donutChart("chBooked",[{label:"Booked",value:m.booked,color:"#22c55e"},{label:"Not Booked",value:m.notBooked,color:"#94a3b8"}]);
+  hbarChart("chCats", REASONS.map(r=>({label:r,value:a.filter(x=>x.invalid_reason===r).length,color:REASON_COLORS[r]||"#004b74"})).filter(d=>d.value>0).sort((x,y)=>y.value-x.value));
+
+  const byDay={};
+  scoped.forEach(c=>{ const d=new Date(c.startTime); if(isNaN(d)) return;
+    const k=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+    if(!byDay[k]) byDay[k]={b:0,o:0}; if(c.analysis && c.analysis.booking_status==="Booked") byDay[k].b++; else byDay[k].o++; });
+  const dayKeys=Object.keys(byDay).sort();
+  stackedPerDay("chPerDay", dayKeys.map(k=>{ const p=k.split("-"); return {label:(+p[1])+"/"+(+p[2]), booked:byDay[k].b, other:byDay[k].o}; }));
+  $("chDaySub").textContent=dayKeys.length+" day"+(dayKeys.length>1?"s":"");
+
+  const dowNames=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"], dow=[0,0,0,0,0,0,0];
+  scoped.forEach(c=>{ const d=new Date(c.startTime); if(!isNaN(d)) dow[d.getDay()]++; });
+  barChart("chDow", dow.map((v,i)=>({label:dowNames[i],value:v,color:"#004b74"})));
+
+  const tod={Dawn:0,Morning:0,Afternoon:0,Night:0};
+  scoped.forEach(c=>{ const d=new Date(c.startTime); if(isNaN(d)) return; const h=d.getHours();
+    tod[h<6?"Dawn":h<12?"Morning":h<18?"Afternoon":"Night"]++; });
+  const todColor={Dawn:"#8b5cf6",Morning:"#f99e23",Afternoon:"#004b74",Night:"#042232"};
+  barChart("chTod", ["Dawn","Morning","Afternoon","Night"].map(k=>({label:k,value:tod[k],color:todColor[k]})));
+
+  $("insText").innerHTML=ins.html; $("insTags").innerHTML=ins.tags; $("insRange").textContent=ins.rangeLabel;
+  $("ovSuggest").innerHTML=buildSuggestions(m, tod).map(s=>`<li><span class="ic">${s.icon}</span><span>${s.text}</span></li>`).join("");
+}
+
+// Left-nav page switching.
+document.querySelectorAll(".nav-item").forEach(b=>b.addEventListener("click",()=>{
+  const pg=b.dataset.page;
+  document.querySelectorAll(".nav-item").forEach(x=>x.classList.toggle("active", x===b));
+  $("pageOverview").style.display = pg==="overview" ? "block" : "none";
+  $("pageCallLog").style.display  = pg==="calllog"  ? "block" : "none";
+  if(pg==="overview") renderOverview();
+}));
+// Overview's own date-range + company controls.
+$("ovDateRange").addEventListener("change",()=>{
+  const c=$("ovDateRange").value==="custom";
+  $("ovFrom").style.display=c?"":"none"; $("ovTo").style.display=c?"":"none"; renderOverview();
+});
+$("ovFrom").addEventListener("change",renderOverview);
+$("ovTo").addEventListener("change",renderOverview);
+$("ovCompany").addEventListener("change",renderOverview);
 
 // Returns [start,end] Date bounds (either side may be null = unbounded) for a date-range preset,
 // or null when no date filtering should apply ("All dates", or "Custom" with both fields empty).
