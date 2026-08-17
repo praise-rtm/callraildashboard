@@ -27,7 +27,10 @@ body{font-family:'Montserrat',sans-serif;background:var(--bg);color:var(--text);
 .header-text h1{color:#fff;font-size:15.5px;font-weight:800;letter-spacing:.3px;line-height:1.1}
 .header-text p{color:rgba(255,255,255,.6);font-size:11px;font-weight:500;margin-top:2px}
 .header-right{margin-left:auto;display:flex;align-items:center;gap:14px}
-.header-logo-right{height:34px;width:auto;display:block}
+.header-logo{height:34px;width:auto;display:block}
+.header-clock{text-align:right;color:#fff;line-height:1.15}
+.hc-time{font-size:14.5px;font-weight:800;letter-spacing:.3px;font-variant-numeric:tabular-nums}
+.hc-date{font-size:10.5px;color:rgba(255,255,255,.62);font-weight:600;margin-top:2px}
 .engine-badge{font-size:11px;font-weight:700;padding:6px 12px;border-radius:20px;display:flex;align-items:center;gap:7px;
   background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.22);color:rgba(255,255,255,.85)}
 .engine-badge .dot{width:8px;height:8px;border-radius:50%;background:var(--slate)}
@@ -241,6 +244,7 @@ tbody tr.rude-row:hover{background:#ffecec}
 </head>
 <body>
 <div class="header">
+  <img class="header-logo" src="https://cdn-kjigl.nitrocdn.com/pnwIXRFdybUPisPfAzpIrnxojGSNUDCf/assets/images/optimized/rev-774bc17/realtimemarketing.com/wp-content/uploads/2026/02/RTM-New-Logo-Light.png" alt="Real Time Marketing" onerror="this.style.display='none'"/>
   <div class="header-divider"></div>
   <div class="header-text">
     <h1>CallRail Call Dashboard Analysis</h1>
@@ -248,7 +252,10 @@ tbody tr.rude-row:hover{background:#ffecec}
   </div>
   <div class="header-right">
     <div class="engine-badge heur" id="engineBadge"><span class="dot"></span><span id="engineText">Heuristic mode</span></div>
-    <img class="header-logo-right" src="https://cdn-kjigl.nitrocdn.com/pnwIXRFdybUPisPfAzpIrnxojGSNUDCf/assets/images/optimized/rev-774bc17/realtimemarketing.com/wp-content/uploads/2026/02/RTM-New-Logo-Light.png" alt="Real Time Marketing" onerror="this.style.display='none'"/>
+    <div class="header-clock" id="headerClock">
+      <div class="hc-time" id="hcTime">--:--:--</div>
+      <div class="hc-date" id="hcDate">Eastern Time</div>
+    </div>
   </div>
 </div>
 
@@ -457,7 +464,7 @@ const TONE_CLASS = {"Friendly":"t-friendly","Professional":"t-pro","Neutral":"t-
 
 // Bump this version whenever classification logic changes, so stale cached results
 // from an older ruleset are discarded instead of silently reused.
-const LS_KEY = "callrail_analysis_v134";
+const LS_KEY = "callrail_analysis_v135";
 const LS_APIKEY = "callrail_api_key";
 const LS_MODEL = "callrail_model";
 
@@ -468,6 +475,16 @@ let activeReasons = new Set(); // multi-select: matches ANY selected category (O
 
 /* ---------- element refs ---------- */
 const $ = id => document.getElementById(id);
+
+/* Live header clock — current date + time in US Eastern time, refreshed every second. */
+function updateHeaderClock(){
+  const now=new Date(), t=$("hcTime"), d=$("hcDate");
+  if(!t||!d) return;
+  t.textContent=now.toLocaleTimeString("en-US",{timeZone:"America/New_York",hour:"2-digit",minute:"2-digit",second:"2-digit",hour12:true,timeZoneName:"short"});
+  d.textContent=now.toLocaleDateString("en-US",{timeZone:"America/New_York",weekday:"short",month:"short",day:"numeric",year:"numeric"});
+}
+updateHeaderClock(); setInterval(updateHeaderClock,1000);
+
 const apiKeyEl=$("apiKey"), modelEl=$("model"), concEl=$("concurrency");
 const analyzeBtn=$("analyzeBtn"), stopBtn=$("stopBtn");
 
