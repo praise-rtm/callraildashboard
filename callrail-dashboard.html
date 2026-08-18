@@ -466,7 +466,7 @@ const TONE_CLASS = {"Friendly":"t-friendly","Professional":"t-pro","Neutral":"t-
 
 // Bump this version whenever classification logic changes, so stale cached results
 // from an older ruleset are discarded instead of silently reused.
-const LS_KEY = "callrail_analysis_v138";
+const LS_KEY = "callrail_analysis_v139";
 const LS_APIKEY = "callrail_api_key";
 const LS_MODEL = "callrail_model";
 
@@ -1466,11 +1466,12 @@ function stripIvrMenu(text){
 }
 
 function classifyHeuristic(call){
-  // Known recurring marketing/vendor number — always Marketing regardless of call content, checked
-  // before anything else so it can't be overridden by a status-driven rule (Abandoned/Missed) either.
-  if(KNOWN_MARKETING_NUMBERS.has(String(call.phone||"").replace(/\D/g,"").slice(-10)))
-    return normalize({summary:"Recurring marketing/vendor call from a known number.",is_service_call:false,booking_status:"N/A",invalid_reason:"Marketing",confidence:"High",engine:"heuristic"},call);
   const status=(call.status||"").toLowerCase();
+  // Known recurring marketing/vendor number — always Marketing regardless of call content, so a
+  // transcription-based rule can't override it. EXCEPTION: an Abandoned call from this number never
+  // connected (no content to confirm it's the vendor), so it follows the Abandoned rule instead.
+  if(!status.includes("abandon") && KNOWN_MARKETING_NUMBERS.has(String(call.phone||"").replace(/\D/g,"").slice(-10)))
+    return normalize({summary:"Recurring marketing/vendor call from a known number.",is_service_call:false,booking_status:"N/A",invalid_reason:"Marketing",confidence:"High",engine:"heuristic"},call);
   const t=(call.transcription||"").toLowerCase();
   const note=stripDispatcherTag(call.note||"").toLowerCase();
   const blob=stripIvrMenu(call.transcription).toLowerCase()+" "+note;
@@ -1990,10 +1991,10 @@ function heuristicSummary(txt){
 function normalize(a, call){
   const status=(call.status||"").toLowerCase();
   const isKnownMarketingNumber=KNOWN_MARKETING_NUMBERS.has(String(call.phone||"").replace(/\D/g,"").slice(-10));
-  // hard status overrides — skipped for a known recurring marketing/vendor number, which should read as
-  // Marketing even if CallRail's own status says Abandoned/Missed (the caller hung up before anyone
-  // answered, but it's still that same vendor's call attempt, not an unknown missed lead).
-  if(status.includes("abandon") && !isKnownMarketingNumber){ a.invalid_reason="Abandoned"; a.is_service_call=false; a.booking_status="Not Booked"; }
+  // hard status overrides. Abandoned wins even for a known marketing number — an abandoned call never
+  // connected, so there's no way to confirm it was that vendor; follow the Abandoned rule. A Missed call
+  // from a known number still reads as Marketing (that same vendor's repeat attempt, not an unknown lead).
+  if(status.includes("abandon")){ a.invalid_reason="Abandoned"; a.is_service_call=false; a.booking_status="Not Booked"; }
   else if(status.includes("missed") && !isKnownMarketingNumber){ a.invalid_reason="Missed"; a.is_service_call=false; a.booking_status="Not Booked"; }
   else if(isKnownMarketingNumber){ a.invalid_reason="Marketing"; a.is_service_call=false; a.booking_status="N/A"; }
   // consistency guards
