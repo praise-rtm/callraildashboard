@@ -466,7 +466,7 @@ const TONE_CLASS = {"Friendly":"t-friendly","Professional":"t-pro","Neutral":"t-
 
 // Bump this version whenever classification logic changes, so stale cached results
 // from an older ruleset are discarded instead of silently reused.
-const LS_KEY = "callrail_analysis_v137";
+const LS_KEY = "callrail_analysis_v138";
 const LS_APIKEY = "callrail_api_key";
 const LS_MODEL = "callrail_model";
 
@@ -615,16 +615,26 @@ function buildStatusFilter(){
   const set=[...new Set(CALLS.map(c=>c.status).filter(Boolean))].sort();
   sel.innerHTML='<option value="">All CallRail statuses</option>'+set.map(s=>`<option>${esc(s)}</option>`).join("");
 }
+// Source (CallRail "Number Name") options limited to a given company — or every source when company="".
+function sourceOptionsFor(company){
+  const set=[...new Set(CALLS.filter(c=>!company || c.company===company).map(c=>(c.numberName||"").trim()).filter(Boolean))].sort();
+  return '<option value="">All Source</option>'+set.map(s=>`<option>${esc(s)}</option>`).join("");
+}
+// Rebuild a Source dropdown to show only the number names available for its company selection,
+// keeping the current pick if it still exists for that company (otherwise back to "All Source").
+function refreshSourceOptions(companyId, sourceId){
+  const cs=$(companyId), ss=$(sourceId); if(!cs||!ss) return;
+  const prev=ss.value;
+  ss.innerHTML=sourceOptionsFor(cs.value);
+  ss.value=[...ss.options].some(o=>o.value===prev)?prev:"";
+}
 function buildCompanyFilter(){
   const set=[...new Set(CALLS.map(c=>c.company).filter(Boolean))].sort();
   const opts='<option value="">All companies</option>'+set.map(s=>`<option>${esc(s)}</option>`).join("");
   $("fCompany").innerHTML=opts;
   if($("ovCompany")) $("ovCompany").innerHTML=opts;   // Overview shares the same company list
-  // Source = CallRail "Number Name" (e.g. tracking-line / campaign source).
-  const srcSet=[...new Set(CALLS.map(c=>(c.numberName||"").trim()).filter(Boolean))].sort();
-  const srcOpts='<option value="">All Source</option>'+srcSet.map(s=>`<option>${esc(s)}</option>`).join("");
-  if($("fSource")) $("fSource").innerHTML=srcOpts;
-  if($("ovSource")) $("ovSource").innerHTML=srcOpts;
+  refreshSourceOptions("fCompany","fSource");
+  refreshSourceOptions("ovCompany","ovSource");
 }
 
 /* ============================================================
@@ -2069,7 +2079,7 @@ $("fBooking").addEventListener("change",renderTable);
 $("fService").addEventListener("change",renderTable);
 $("fTone").addEventListener("change",renderTable);
 $("fStatus").addEventListener("change",renderTable);
-$("fCompany").addEventListener("change",renderAll);
+$("fCompany").addEventListener("change",()=>{ refreshSourceOptions("fCompany","fSource"); renderAll(); });
 $("fSource").addEventListener("change",renderAll);
 $("fDateRange").addEventListener("change",()=>{
   const isCustom=$("fDateRange").value==="custom";
@@ -2295,7 +2305,7 @@ $("ovDateRange").addEventListener("change",()=>{
 });
 $("ovFrom").addEventListener("change",renderOverview);
 $("ovTo").addEventListener("change",renderOverview);
-$("ovCompany").addEventListener("change",renderOverview);
+$("ovCompany").addEventListener("change",()=>{ refreshSourceOptions("ovCompany","ovSource"); renderOverview(); });
 $("ovSource").addEventListener("change",renderOverview);
 
 // Returns [start,end] Date bounds (either side may be null = unbounded) for a date-range preset,
