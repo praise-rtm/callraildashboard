@@ -319,6 +319,7 @@ tbody tr.rude-row:hover{background:#ffecec}
       <div class="ov-title">Account Overview <span id="ovRangeLbl"></span></div>
       <div style="flex:1"></div>
       <select class="tsel" id="ovCompany"><option value="">All companies</option></select>
+      <select class="tsel" id="ovSource"><option value="">All Source</option></select>
       <select class="tsel" id="ovDateRange">
         <option value="">All dates</option><option value="today">Today</option><option value="yesterday">Yesterday</option>
         <option value="this_week">This week</option><option value="last_week">Last week</option>
@@ -388,6 +389,7 @@ tbody tr.rude-row:hover{background:#ffecec}
     <input type="date" class="tsel" id="fDateFrom" style="display:none" />
     <input type="date" class="tsel" id="fDateTo" style="display:none" />
     <select class="tsel" id="fCompany"><option value="">All companies</option></select>
+    <select class="tsel" id="fSource"><option value="">All Source</option></select>
   </div>
 
   <!-- TOOLBAR -->
@@ -464,7 +466,7 @@ const TONE_CLASS = {"Friendly":"t-friendly","Professional":"t-pro","Neutral":"t-
 
 // Bump this version whenever classification logic changes, so stale cached results
 // from an older ruleset are discarded instead of silently reused.
-const LS_KEY = "callrail_analysis_v135";
+const LS_KEY = "callrail_analysis_v136";
 const LS_APIKEY = "callrail_api_key";
 const LS_MODEL = "callrail_model";
 
@@ -618,6 +620,11 @@ function buildCompanyFilter(){
   const opts='<option value="">All companies</option>'+set.map(s=>`<option>${esc(s)}</option>`).join("");
   $("fCompany").innerHTML=opts;
   if($("ovCompany")) $("ovCompany").innerHTML=opts;   // Overview shares the same company list
+  // Source = CallRail "Number Name" (e.g. tracking-line / campaign source).
+  const srcSet=[...new Set(CALLS.map(c=>(c.numberName||"").trim()).filter(Boolean))].sort();
+  const srcOpts='<option value="">All Source</option>'+srcSet.map(s=>`<option>${esc(s)}</option>`).join("");
+  if($("fSource")) $("fSource").innerHTML=srcOpts;
+  if($("ovSource")) $("ovSource").innerHTML=srcOpts;
 }
 
 /* ============================================================
@@ -2063,6 +2070,7 @@ $("fService").addEventListener("change",renderTable);
 $("fTone").addEventListener("change",renderTable);
 $("fStatus").addEventListener("change",renderTable);
 $("fCompany").addEventListener("change",renderAll);
+$("fSource").addEventListener("change",renderAll);
 $("fDateRange").addEventListener("change",()=>{
   const isCustom=$("fDateRange").value==="custom";
   $("fDateFrom").style.display=isCustom?"":"none";
@@ -2078,9 +2086,10 @@ function renderAll(){ renderStats(); renderReasons(); renderTable(); renderOverv
 // Overview has its OWN date-range + company controls (independent of the Call Log filters).
 function ovBounds(){ return dateRangeBounds($("ovDateRange").value, $("ovFrom").value, $("ovTo").value); }
 function ovCalls(){
-  const bounds=ovBounds(), fco=$("ovCompany").value;
+  const bounds=ovBounds(), fco=$("ovCompany").value, fsrc=($("ovSource")?$("ovSource").value:"");
   return CALLS.filter(c=>{
     if(fco && c.company!==fco) return false;
+    if(fsrc && (c.numberName||"").trim()!==fsrc) return false;
     if(bounds){ const d=new Date(c.startTime); if(isNaN(d)) return false;
       if(bounds[0] && d<bounds[0]) return false; if(bounds[1] && d>bounds[1]) return false; }
     return true;
@@ -2287,6 +2296,7 @@ $("ovDateRange").addEventListener("change",()=>{
 $("ovFrom").addEventListener("change",renderOverview);
 $("ovTo").addEventListener("change",renderOverview);
 $("ovCompany").addEventListener("change",renderOverview);
+$("ovSource").addEventListener("change",renderOverview);
 
 // Returns [start,end] Date bounds (either side may be null = unbounded) for a date-range preset,
 // or null when no date filtering should apply ("All dates", or "Custom" with both fields empty).
@@ -2321,9 +2331,10 @@ function dateRangeBounds(preset,customFrom,customTo){
 // used to scope the top stat cards and category counts to the selected range.
 function callsInDateRange(){
   const bounds=dateRangeBounds($("fDateRange").value,$("fDateFrom").value,$("fDateTo").value);
-  const fco=$("fCompany").value;
+  const fco=$("fCompany").value, fsrc=($("fSource")?$("fSource").value:"");
   return CALLS.filter(c=>{
     if(fco && c.company!==fco) return false;
+    if(fsrc && (c.numberName||"").trim()!==fsrc) return false;
     if(bounds){
       const d=new Date(c.startTime);
       if(isNaN(d)) return false;
@@ -2337,9 +2348,11 @@ function callsInDateRange(){
 function filtered(){
   const q=$("search").value.toLowerCase().trim();
   const fb=$("fBooking").value, fs=$("fService").value, fst=$("fStatus").value, ft=$("fTone").value, fco=$("fCompany").value;
+  const fsrc=($("fSource")?$("fSource").value:"");
   const bounds=dateRangeBounds($("fDateRange").value,$("fDateFrom").value,$("fDateTo").value);
   return CALLS.filter(c=>{
     const a=c.analysis;
+    if(fsrc && (c.numberName||"").trim()!==fsrc) return false;
     if(activeReasons.size && (!a || !activeReasons.has(a.invalid_reason))) return false;
     if(fb && (!a || a.booking_status!==fb)) return false;
     if(fs==="yes" && (!a || !a.is_service_call)) return false;
