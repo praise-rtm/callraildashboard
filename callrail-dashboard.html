@@ -466,7 +466,7 @@ const TONE_CLASS = {"Friendly":"t-friendly","Professional":"t-pro","Neutral":"t-
 
 // Bump this version whenever classification logic changes, so stale cached results
 // from an older ruleset are discarded instead of silently reused.
-const LS_KEY = "callrail_analysis_v140";
+const LS_KEY = "callrail_analysis_v141";
 const LS_APIKEY = "callrail_api_key";
 const LS_MODEL = "callrail_model";
 
@@ -568,7 +568,8 @@ function extractRows(wb){
       tracking:g(best.map.tracking), startTime:g(best.map.startTime), duration:g(best.map.duration),
       caller:g(best.map.caller), phone:g(best.map.phone), email:g(best.map.email),
       firstTime:g(best.map.firstTime), keywords:g(best.map.keywords),
-      recording:g(best.map.recording), note:g(best.map.note), transcription:g(best.map.transcription)
+      recording:g(best.map.recording), note:g(best.map.note), transcription:g(best.map.transcription),
+      city:g(best.map.city)
     };
     o.key=[o.tracking,o.startTime,o.phone,o.duration].join("|");
     // Only reuse cached AI results (they are expensive to recompute). The offline heuristic is ALWAYS
@@ -606,7 +607,8 @@ function resolveColumns(headers){
     keywords: find(h=>h.includes("keyword")),
     recording: find(h=>h.includes("recording")),
     note: find(h=>h==="note"||h==="notes"),
-    transcription: find(h=>h.includes("transcri"))
+    transcription: find(h=>h.includes("transcri")),
+    city: find(h=>h==="city"||h==="caller city"||h==="customer city"||h==="caller's city"||(h.includes("city")&&!h.includes("company")))
   };
 }
 
@@ -2549,6 +2551,17 @@ function csvTime(s){
   return `${String(h).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")} ${ap}`;
 }
 
+/* Caller city for export: prefer a real City column from the CallRail export; otherwise CallRail records
+   the caller's location in the Name field as "City ST" (e.g. "Atlanta GA", "Waukesha Wi") when the actual
+   name is unknown — pull the city out of that. Returns "" when no city can be determined. */
+const US_STATE_ABBRS=new Set("AL AK AZ AR CA CO CT DE FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY DC".split(" "));
+function callCity(c){
+  if(c.city && String(c.city).trim()) return String(c.city).trim();
+  const m=(c.caller||"").trim().match(/^([A-Za-z][A-Za-z.'-]*(?:\s+[A-Za-z][A-Za-z.'-]*){0,2})[,\s]+([A-Za-z]{2})\.?$/);
+  if(m && US_STATE_ABBRS.has(m[2].toUpperCase())) return m[1];
+  return "";
+}
+
 const EXPORT_COLS=[
   ["Company Name","company"],
   ["Date",c=>csvDate(c.startTime)],
@@ -2558,14 +2571,18 @@ const EXPORT_COLS=[
   ["Number Name","numberName"],
   ["Phone Number",c=>fmtPhone(c.phone)],
   ["Name","caller"],
-  ["Booked or Not Booked",c=>c.analysis?c.analysis.booking_status:""],
+  // Column I = Booked (1 when booked, blank otherwise); Column J = Not Booked (1 when not booked, blank
+  // otherwise). Numeric 1s so the columns can be summed in Excel.
+  ["Booked",c=>c.analysis&&c.analysis.booking_status==="Booked"?1:""],
+  ["Not Booked",c=>c.analysis&&c.analysis.booking_status==="Not Booked"?1:""],
   ["Call Summary",c=>summaryWithReason(c)],
   ["First time caller",c=>firstTimeLabel(c)],
   ["Call Type",c=>callTypeLabel(c)],
   ["Category / Reason",c=>c.analysis?c.analysis.invalid_reason:""],
   ["Agent Tone",c=>c.analysis?c.analysis.agent_tone:""],
   ["Tracking Number",c=>fmtPhone(c.tracking)],
-  ["Recording Link","recording"]
+  ["Recording Link","recording"],
+  ["City",c=>callCity(c)]
 ];
 
 function exportRows(){
