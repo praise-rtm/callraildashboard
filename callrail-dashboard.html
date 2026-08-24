@@ -466,7 +466,7 @@ const TONE_CLASS = {"Friendly":"t-friendly","Professional":"t-pro","Neutral":"t-
 
 // Bump this version whenever classification logic changes, so stale cached results
 // from an older ruleset are discarded instead of silently reused.
-const LS_KEY = "callrail_analysis_v141";
+const LS_KEY = "callrail_analysis_v142";
 const LS_APIKEY = "callrail_api_key";
 const LS_MODEL = "callrail_model";
 
@@ -598,7 +598,10 @@ function resolveColumns(headers){
     company: find(h=>h==="company name"||h==="company"),
     numberName: find(h=>h==="number name"||(h.includes("number")&&h.includes("name"))),
     tracking: find(h=>h.includes("tracking")),
-    startTime: find(h=>h.includes("start")||h==="date"||h.includes("date")||h.includes("time")),
+    // Priority order so a rich CallRail export (First-Time Caller, First/Last Touch At, Talk Time Percent…
+    // all contain "time"/"touch") never hijacks the real Start Time column. Match "start" first, then an
+    // explicit date column, then a guarded date/time fallback.
+    startTime: find(h=>h.includes("start")) ?? find(h=>h==="date"||h==="date/time"||h==="date / time"||h==="call date"||h==="call time"||h==="call date/time") ?? find(h=>(h.includes("date")||h.includes("time"))&&!h.includes("first")&&!h.includes("touch")&&!h.includes("talk")&&!h.includes("duration")),
     duration: find(h=>h.includes("duration")),
     caller: find(h=>h==="name"||h==="caller name"||h==="caller"),
     phone: find(h=>h.includes("phone")||h.includes("caller number")),
