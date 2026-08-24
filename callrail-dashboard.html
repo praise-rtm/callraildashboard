@@ -466,7 +466,7 @@ const TONE_CLASS = {"Friendly":"t-friendly","Professional":"t-pro","Neutral":"t-
 
 // Bump this version whenever classification logic changes, so stale cached results
 // from an older ruleset are discarded instead of silently reused.
-const LS_KEY = "callrail_analysis_v144";
+const LS_KEY = "callrail_analysis_v146";
 const LS_APIKEY = "callrail_api_key";
 const LS_MODEL = "callrail_model";
 
@@ -547,6 +547,31 @@ function handleFile(file){
   reader.readAsArrayBuffer(file);
 }
 
+/* Normalize a transcript into the canonical "Agent: … / Caller: …" line format the whole analysis engine
+   expects. Handles CallRail's newer web-style transcript, where each turn is a bare speaker label on its
+   own line ("Agent" / "Customer"), then a timestamp line ("00:44"), then the spoken text on the next
+   line(s). An already-inline transcript is left as-is (just standardizing "Customer:" -> "Caller:"). */
+function normalizeTranscript(text){
+  const raw=(text||"").trim();
+  if(!raw) return "";
+  const isSpeaker=l=>/^\s*(agent|customer|caller|rep(?:resentative)?|operator|dispatcher|receptionist|representative)\s*$/i.test(l);
+  const isTimestamp=l=>/^\s*\d{1,2}:\d{2}(?::\d{2})?\s*$/.test(l);
+  const mapSpeaker=s=>/customer|caller/i.test(s)?"Caller":"Agent";
+  const lines=raw.split(/\r?\n/);
+  // Already inline ("Agent:" / "Caller:" / "Customer:" prefixes) → just standardize Customer -> Caller.
+  if(/^\s*(?:agent|caller|customer|rep(?:resentative)?|operator|dispatcher)\s*:/im.test(raw) || !lines.some(isSpeaker))
+    return raw.replace(/^(\s*)customer(\s*):/gim,"$1Caller$2");
+  // Multi-line labeled format: rebuild into "Speaker: text" turns, dropping timestamp lines.
+  const turns=[]; let cur=null;
+  for(const line of lines){
+    if(isSpeaker(line)){ cur={who:mapSpeaker(line.trim()), text:[]}; turns.push(cur); continue; }
+    if(isTimestamp(line)) continue;
+    if(cur){ const t=line.trim(); if(t) cur.text.push(t); }
+  }
+  const out=turns.filter(t=>t.text.length).map(t=>`${t.who}: ${t.text.join(" ")}`).join("\n");
+  return out||raw;
+}
+
 /* Find the sheet that looks like the call log, resolve columns, build objects */
 function extractRows(wb){
   let best=null;
@@ -568,7 +593,7 @@ function extractRows(wb){
       tracking:g(best.map.tracking), startTime:g(best.map.startTime), duration:g(best.map.duration),
       caller:g(best.map.caller), phone:g(best.map.phone), email:g(best.map.email),
       firstTime:g(best.map.firstTime), keywords:g(best.map.keywords),
-      recording:g(best.map.recording), note:g(best.map.note), transcription:g(best.map.transcription),
+      recording:g(best.map.recording), note:g(best.map.note), transcription:normalizeTranscript(g(best.map.transcription)),
       city:g(best.map.city)
     };
     o.key=[o.tracking,o.startTime,o.phone,o.duration].join("|");
@@ -1419,6 +1444,8 @@ function buildHeuristicSummary(call,res){
   if(res.booking_status==="Booked"){
     if(offeredWaitlist(src.toLowerCase())){
       sents.push(`With no immediate opening, the agent placed the caller on the cancellation / priority list to be contacted if an earlier slot opens up${when?`, tentatively ${when}`:""}, and the caller agreed.`);
+    } else if(/\bcall\s*back\s+(?:from|by)\b|\bcall\s+(?:me|us)\s+back\b|\breturn(?:ed)?\s+(?:my|our|the)\s+call\b|\bcall\s+returned\s+to\s+(?:me|us)\b|\bhave\s+(?:him|her|james|someone|the owner)\s+(?:call|get back to)\s+(?:me|us)\b/i.test(callerLc)){
+      sents.push(`The caller asked for a callback, and the agent took their name and number and said the message would be passed along so the business could return the call.`);
     } else if(callback && !when){
       sents.push(`Rather than locking in a fixed time, the agent told the caller that someone would call them back to finalize the visit.`);
     } else {
