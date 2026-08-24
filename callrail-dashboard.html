@@ -466,7 +466,7 @@ const TONE_CLASS = {"Friendly":"t-friendly","Professional":"t-pro","Neutral":"t-
 
 // Bump this version whenever classification logic changes, so stale cached results
 // from an older ruleset are discarded instead of silently reused.
-const LS_KEY = "callrail_analysis_v142";
+const LS_KEY = "callrail_analysis_v144";
 const LS_APIKEY = "callrail_api_key";
 const LS_MODEL = "callrail_model";
 
@@ -1494,7 +1494,7 @@ function classifyHeuristic(call){
   const has=(...ws)=>ws.some(w=>blob.includes(w));
   // Service intent must come from what the CALLER said (plus the dispatcher note) — the agent's
   // greeting ("Drains by James") would otherwise inject service keywords into every transcript.
-  const callerText=(call.transcription||"").split(/\n+/).filter(l=>/^caller\s*:/i.test(l)).join(" ").toLowerCase();
+  const callerText=(call.transcription||"").split(/\n+/).filter(l=>/^(?:caller|customer)\s*:/i.test(l)).join(" ").toLowerCase();
   const callerBlob=callerText+" "+note;
   const hasCaller=(...ws)=>ws.some(w=>callerBlob.includes(w));
 
@@ -1537,7 +1537,11 @@ function classifyHeuristic(call){
   // Deliberately NOT "long call = valid lead": a lengthy, substantive conversation about something
   // entirely unrelated to the business (e.g. a caller working through a personal dispute with an
   // employee) has no service keywords at all and must not be assumed valid just because it ran long.
-  const isService = serviceSignals || followUp || priorWorkReference;
+  // Caller REQUESTED a callback from the business / owner ("I'd like a call back from James", "please call
+  // me back", "have him return my call") — a caller who wants the business to call them back is a genuine
+  // service lead, so it counts toward isService (and, paired with the agent taking a message below, Booked).
+  const callerRequestedCallback = /\bcall\s*back\s+(?:from|by)\b|\bcallback\s+(?:from|by)\b|\bcall\s+(?:me|us)\s+back\b|\b(?:return|returned)\s+(?:my|our|the)\s+call\b|\bcall\s+returned\s+to\s+(?:me|us)\b|\bhave\s+(?:him|her|james|jim|someone|somebody|the owner|the tech)\s+(?:call|phone|get back to)\s+(?:me|us)\b|\b(?:want|wanted|like|need|looking for|requesting)\b[^.!?\n]{0,18}\bcall\s*back\b/i.test(callerText);
+  const isService = serviceSignals || followUp || priorWorkReference || callerRequestedCallback;
 
   // Whether the call was routed to a voicemail box is used further down, AFTER spam/wrong-number/job-
   // application/marketing are checked — a vendor pitch or spam message left on an internal extension's
@@ -1596,12 +1600,17 @@ function classifyHeuristic(call){
   // promise must come from the business side. Without this, a CALLER saying "I will call you back"
   // (meaning she'll call the business back) was read as if the agent had promised to call HER back.
   const callbackPromised = /(call|contact|reach) (you|the caller|him|her|them) back|someone will call (you )?back|give you a call( back)?|\bi'?ll call you( back)?|reach back out|call you right back|call (and|to) confirm|call you on (the|your) way|have (?:them|him|her|someone|somebody|my \w+|our \w+|the \w+) call you|(?:receive|get) a call from (?:them|us|the team|dispatch|our team|my \w+|our \w+)|have (?:them|him|her|someone|somebody|my \w+|our \w+|the \w+) reach out(?: to you)?|\bi'?ll let you know|(?:then|and) (?:i can|i'?ll) let you know|(?:dispatch(?:er)?|our team|the office|someone|somebody|they) (?:will |is going to |'?s going to |'?ll )?(?:reach out|call|contact)[^.]{0,30}(?:confirm|in the morning|shortly)|reach out[^.]{0,25}confirm/i.test(agentText);
+  // When the agent takes the caller's message / name+number to pass along (or otherwise promises a
+  // callback), the callback the caller requested is being ARRANGED — that counts as Booked (the business
+  // said someone will call the caller back). callerRequestedCallback is computed near isService above.
+  const agentTookMessage = /\bsend\s+(?:it|this|that|the message|your (?:message|info|number|details))\s+(?:over|off|along)?\s*(?:to\s+(?:them|him|her|james|jim|the (?:owner|team|office)))?\b|\bi'?ll\s+(?:send|pass|forward|relay|give|get)\b[^.!?\n]{0,34}\b(?:message|them|him|her|james|along|over|know)\b|\bput\s+(?:you|that|anything|it|a note|a message)\s+in\s+(?:the|a)\s+message\b|\b(?:take|leave|get)\s+(?:a|your|the)\s+message\b|\b(?:i'?ll|i will)\s+(?:let|have)\s+(?:them|him|her|james|jim|the owner)\s+(?:know|call|reach)\b|\bpass\s+(?:it|this|that|the message)\s+(?:on|along|over|to)\b/i.test(agentText);
+  const callbackArranged = callerRequestedCallback && (agentTookMessage || callbackPromised);
   const committed = hasCaller("book me","book it","let's do it","let's do that","i'll take it","yes let's","put me down","schedule me","set it up","go ahead and schedule","go ahead and book");
   // Caller agreed to the agent's offer (used only when the agent actually offered to book).
   const callerAgreed = committed || hasCaller("great","perfect","sounds good","sounds great","okay","that works","that'll work",
     "that will work","yes","yeah","see you","thank you so much","awesome","wonderful","that's fine","that is fine","appreciate it",
     "that'd be great","that would be great","go ahead","yep","very good","that's great","that's perfect","perfect thank you");
-  const agreed = bookingConfirmed || callbackPromised || (bookingOffered && callerAgreed);
+  const agreed = bookingConfirmed || callbackPromised || callbackArranged || (bookingOffered && callerAgreed);
   // Caller explicitly DECLINED the offered schedule / is going elsewhere (unbooked scheduling failure).
   // NOTE: \b before "i'?ll" is required — without it, "w-ILL call around" (e.g. "the caller will call
   // around first" while comparing quotes) matched via the bare "ill" inside "will", wrongly triggering a
@@ -1928,7 +1937,7 @@ function classifyHeuristic(call){
       "need to think about it","have to think about it","talk to my spouse","talk to my husband","talk to my wife",
       "discuss it with my","let me decide","let me look it over","let me consider","let me talk to")
       || callerWillCallBack;
-    if(bookingConfirmed || (callbackPromised && !callerDefers))
+    if(bookingConfirmed || ((callbackPromised || callbackArranged) && !callerDefers))
       return normalize({summary,is_service_call:true,booking_status:"Booked",invalid_reason:"Valid Call",confidence:"Medium",engine:"heuristic"},call);
     if(followUp) return normalize({summary,is_service_call:true,booking_status:"Not Booked",invalid_reason:"Valid Call",confidence:"Medium",engine:"heuristic"},call);
     // Caller actively declined the offered schedule / went elsewhere. Shopping around for a better price
