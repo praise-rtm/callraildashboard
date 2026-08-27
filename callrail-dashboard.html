@@ -466,7 +466,7 @@ const TONE_CLASS = {"Friendly":"t-friendly","Professional":"t-pro","Neutral":"t-
 
 // Bump this version whenever classification logic changes, so stale cached results
 // from an older ruleset are discarded instead of silently reused.
-const LS_KEY = "callrail_analysis_v146";
+const LS_KEY = "callrail_analysis_v150";
 const LS_APIKEY = "callrail_api_key";
 const LS_MODEL = "callrail_model";
 
@@ -1604,7 +1604,7 @@ function classifyHeuristic(call){
   // appointment"). Making it optional matched the bare noun phrase "a scheduled appointment", so a caller
   // merely REFERRING to their existing appointment ("I have a scheduled appointment for tomorrow. Can you
   // cancel?") was read as a newly-confirmed booking — which then suppressed the "Cancelled" result.
-  const bookingConfirmed = /appointment (was |is |has been )?(set|scheduled|booked|confirmed|arranged)|(set|scheduled|booked|arranged) (up )?(an|the|your|you an|you the) appointment|arrangements (are|were) made|booked you (in|for|today)|you'?re booked (in|for|today)|got you (down|scheduled|booked|on the schedule)|(?:i have|i'?ve|we have|we'?ve|i'?ll get|we'?ll get|let me get|i'?m going to get|got|getting) you (?:all )?set(?: up)?(?: for| tomorrow| today| on | at | this | next| between)|(?:have|got) you (?:down|scheduled|booked) (?:for |tomorrow|today|on |at |this |next )|(you|we)'?re all set|(get|got) (this|it|you|that|everything) (all )?(set up|scheduled|booked|arranged)|put (you|it|him|her) (down|under|on the schedule)|i (will|'?ll|'?m going to|'?m gonna) (have|get|send|put|schedule)[^.]{0,25}(there|out|over|down|come|between|today|tomorrow|this|scheduled|set)|(someone|somebody) (will|is going to|'?s going to) (be there|come out|arrive|head)|(technician|tech) (will|'?s going to) (arrive|be there|come|head)|(is|are|they'?re) coming (out )?(today|tomorrow|between|this)|(is|are|they'?re)(?: supposed to be)? going over (today|tomorrow|this)|(we'?ll |\bi'?ll )see you (then|tomorrow|on |this |at )|see you (then|tomorrow|on the)|look forward to seeing you|caller (?:agreed|acknowledged|confirmed) (?:to|with)?[^.]{0,15}(?:appointment|schedul\w*|booking|time slot|visit)|can be scheduled (for )?(today|tomorrow|this (week|afternoon|morning|evening)|on \w+day)|(is|are|they'?re|he'?s|she'?s) on (?:the|our) schedule( right now)?|let'?s go ahead and (?:also )?(?:tentatively )?schedule|go ahead and (?:tentatively )?schedule (?:that|it|you|this)|tentatively schedule (?:that|it|you|this)|put[^.]{0,20}service call[^.]{0,10}\bin\b|put in[^.]{0,20}service call|i could (?:probably )?(?:do it|get (?:someone|somebody) out(?: there)?|come out|send (?:someone|somebody) out) (?:today|tomorrow|this afternoon|this morning|monday|tuesday|wednesday|thursday|friday|saturday|sunday)|(?:i'?ve|i have) got (?:them|him|her|someone|somebody|it) coming (?:out)?[^.]{0,25}(?:today|tomorrow|this \w+day|between)|probably[\s\S]{0,20}(?:tomorrow|today|this (?:morning|afternoon|evening)|on \w+day)[^.]{0,20}(?:after|before|around|between)/i.test(blob)
+  const bookingConfirmed = /appointment (was |is |has been )?(set|scheduled|booked|confirmed|arranged)|(set|scheduled|booked|arranged) (up )?(an|the|your|you an|you the) appointment|arrangements (are|were) made|booked you (in|for|today)|you'?re booked (in|for|today)|got you (down|scheduled|booked|on the schedule)|(?:i have|i'?ve|we have|we'?ve|i'?ll get|we'?ll get|let me get|i'?m going to get|got|getting) you (?:all )?set(?: up)?(?: for| tomorrow| today| on | at | this | next| between)|(?:have|got) you (?:down|scheduled|booked) (?:for |tomorrow|today|on |at |this |next )|(you|we)'?re all set|(?:let me get|let'?s get|i'?ll get|we'?ll get|i'?ve got|we'?ve got|i have got|we have got|going to get|gonna get|go ahead and get|\bgot|getting) (this|it|you|that|everything) (all )?(set up|scheduled|booked|arranged)|put (you|it|him|her) (down|under|on the schedule)|i (will|'?ll|'?m going to|'?m gonna) (have|get|send|put|schedule)[^.]{0,25}(there|out there|out to you|out to your|over|down|come|between|today|tomorrow|this|scheduled|set)|(someone|somebody) (will|is going to|'?s going to) (be there|come out|arrive|head)|(technician|tech) (will|'?s going to) (arrive|be there|come|head)|(is|are|they'?re) coming (out )?(today|tomorrow|between|this)|(is|are|they'?re)(?: supposed to be)? going over (today|tomorrow|this)|(we'?ll |\bi'?ll )see you (then|tomorrow|on |this |at )|see you (then|tomorrow|on the)|look forward to seeing you|sent (?:you )?(?:a |the )?confirmation(?: text| email)?|(?:i'?ll|we'?ll) text you[^.]{0,34}(?:headed|on (?:our|my) way|coming|on the way|way tomorrow|way monday|way tuesday|way wednesday|way thursday|way friday|way saturday|way sunday)|caller (?:agreed|acknowledged|confirmed) (?:to|with)?[^.]{0,15}(?:appointment|schedul\w*|booking|time slot|visit)|can be scheduled (for )?(today|tomorrow|this (week|afternoon|morning|evening)|on \w+day)|(is|are|they'?re|he'?s|she'?s) on (?:the|our) schedule( right now)?|let'?s go ahead and (?:also )?(?:tentatively )?schedule|go ahead and (?:tentatively )?schedule (?:that|it|you|this)|tentatively schedule (?:that|it|you|this)|put[^.]{0,20}service call[^.]{0,10}\bin\b|put in[^.]{0,20}service call|i could (?:probably )?(?:do it|get (?:someone|somebody) out(?: there)?|come out|send (?:someone|somebody) out) (?:today|tomorrow|this afternoon|this morning|monday|tuesday|wednesday|thursday|friday|saturday|sunday)|(?:i'?ve|i have) got (?:them|him|her|someone|somebody|it) coming (?:out)?[^.]{0,25}(?:today|tomorrow|this \w+day|between)|probably[\s\S]{0,20}(?:tomorrow|today|this (?:morning|afternoon|evening)|on \w+day)[^.]{0,20}(?:after|before|around|between)/i.test(blob)
     || /(?:^|\|)\s*booked\b/i.test(call.note||"");   // dispatcher-note "Booked today" tag (browser-safe, no lookbehind)
   // Simpler bare-keyword booking signal used only by the non-isService fallback paths further down
   // (very-short-call / no-clear-conclusion / natural-closing-without-a-topic-match) — folds in the much
@@ -1751,9 +1751,13 @@ function classifyHeuristic(call){
   // business/place) — bare "I have the wrong ___" also matches a caller mixing up a CALLBACK phone
   // number's digits ("maybe I have the wrong one now" while reading off a number to text photos to),
   // which has nothing to do with having dialed the wrong business.
-  const wrongNum = has("wrong number","sorry, wrong","misdialed","wrong company","not who i",
+  // The agent talking about THEIR OWN outbound dialing ("I was calling you on the wrong number") is
+  // call-back logistics, not this caller reaching a wrong number — it must not trigger Wrong Number.
+  const agentSelfWrongNumber = /\b(?:i|we)\b[^.?!]{0,18}\bcalling\b[^.?!]{0,14}\bwrong\s+number\b/i.test(agentText);
+  const wrongNum = (has("wrong number","sorry, wrong","misdialed","wrong company","not who i",
     "i have the wrong number","i have the wrong company","i have the wrong business","i have the wrong place",
     "must have the wrong number","must have the wrong company","must have the wrong business","must have the wrong place")
+    && !agentSelfWrongNumber)
     // Agent-initiated correction: the CALLER never recognizes the mistake herself, but the agent explicitly
     // redirects her to call a different company/entity and clarifies this business's own identity in the
     // same breath ("You need to call Heco. This is EI Electrical.") — a company-identity mixup, distinct
@@ -1982,7 +1986,12 @@ function classifyHeuristic(call){
     // slot — bookingOffered's "we can come" matches that incidentally, and callerAgreed's bare "yes"/"yeah"
     // matches ordinary filler words (an opening "yes" answering "how can I help", a "yeah" right before
     // declining), not actual agreement to book.
-    if(bookingOffered && callerAgreed && !callerDefers && !pricingPolicyDecline)
+    // The agent going off to CHECK availability ("let me call the technicians and see if any can come out",
+    // "give me five minutes, I'll call them and see") has NOT confirmed anything — it's not a booking, even
+    // when a stray "okay"/"perfect"/"thank you" makes callerAgreed match. A real booking would have set a
+    // firm time (bookingConfirmed, checked earlier) instead.
+    const agentCheckingAvailability = /(?:let me|i'?m going to|i'?ll|going to|gonna)\s+(?:call|check with|reach out to|ask|contact)[^.?!]{0,45}\b(?:technician|tech|guys|team|crew|dispatch|driver|plumber|them|him|her)\b[^.?!]{0,45}\b(?:see if|and see|if (?:they|he|she|someone|anyone|any)|willing|available|can come|can make it|come out)|see if (?:any of them|they|he|she|someone|anybody|anyone) (?:can|could|are willing|are available|is willing|is available)|give me[^.?!]{0,10}(?:five|5|a few|ten|10|couple)\s+minutes/i.test(agentText);
+    if(bookingOffered && callerAgreed && !callerDefers && !pricingPolicyDecline && !agentCheckingAvailability)
       return normalize({summary,is_service_call:true,booking_status:"Booked",invalid_reason:"Valid Call",confidence:"Medium",engine:"heuristic"},call);
     // Agent had no same-day availability and nothing booked.
     if(noSameDay)
