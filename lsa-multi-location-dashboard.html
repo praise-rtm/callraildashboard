@@ -836,6 +836,9 @@ function gvizUrl(id, params){
    request fails with a bare TypeError. That is by far the most common cause of a
    blanket "network error", and it is worth naming instead of guessing. */
 const OPAQUE_ORIGIN = location.origin === "null" || location.protocol === "file:" || location.protocol === "data:";
+/* Where the working copy lives. A file:// copy can never reach Google, so rather
+   than explaining that every time, it hands over to the hosted one. */
+const LIVE_URL = "https://praise-rtm.github.io/callraildashboard/lsa-multi-location-dashboard.html";
 function transportError(e){
   if(e && e.name === "AbortError") return "Google did not respond in time";
   if(OPAQUE_ORIGIN)
@@ -2392,25 +2395,39 @@ function selfFileName(){
   return /^[\w.-]{1,80}\.html?$/i.test(last) ? last : "lsa-multi-location-dashboard.html";
 }
 
-// Surface the file:// problem before the user pastes anything and waits for a failure.
+// A local copy cannot reach Google at all, so hand over to the hosted one rather
+// than leaving the reader stuck on an explanation they can't act on.
 if(OPAQUE_ORIGIN){
   const w = $("originWarn");
   w.className = "warnbox";
   w.innerHTML =
-    '<h4>This page needs to be served over http:// &mdash; it can\'t load sheets like this</h4>' +
-    'It is open as a local file, so the browser gives it an <b>opaque origin</b> and Google refuses every ' +
-    'request from it. Nothing is wrong with your links or your sharing settings. Two ways to fix it:' +
-    '<ol>' +
-      '<li>Open the published copy on your dashboard host (same as the CallRail dashboard), or</li>' +
-      '<li>Serve this folder locally &mdash; run <code>python3 -m http.server 7788</code> in the folder ' +
-        'containing this file, then open <code>http://localhost:7788/' +
-        esc(location.pathname.split("/").pop() || "lsa-multi-location-dashboard.html") + '</code></li>' +
-    '</ol>';
+    '<h4>Opening the live dashboard&hellip;</h4>' +
+    "This copy is running from a local file, so the browser gives it an <b>opaque origin</b> and Google " +
+    "refuses every request from it &mdash; nothing is wrong with your links or your sharing settings. " +
+    'Taking you to the hosted copy, which works:' +
+    '<div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">' +
+      '<a class="btn btn-accent" href="' + LIVE_URL + '">Open the live dashboard now</a>' +
+      '<a href="#" id="stayLocal" style="font-size:11.5px;font-weight:700;color:var(--text-muted)">Stay on this local copy</a>' +
+    '</div>' +
+    '<div style="margin-top:9px;font-size:11px;color:var(--text-muted)">' +
+      'Bookmark <code>' + LIVE_URL + '</code> &mdash; that is the one to use day to day. ' +
+      'This local file is the source copy that gets edited and published.</div>';
   $("btnLoadAll").disabled = true;
   $("btnLoadAll").title = "Unavailable while the page is running from a local file";
-}
 
-wireRangePicker();
+  // Give the reader a beat to cancel before the hand-off.
+  const jump = setTimeout(() => location.replace(LIVE_URL), 2500);
+  $("stayLocal").onclick = e => {
+    e.preventDefault();
+    clearTimeout(jump);
+    w.innerHTML =
+      '<h4>This local copy can\'t load sheets</h4>' +
+      'Google refuses requests from a <b>file://</b> page. To use it here instead, serve the folder &mdash; ' +
+      'run <code>python3 -m http.server 7788</code> where this file lives, then open ' +
+      '<code>http://localhost:7788/' + esc(selfFileName()) + '</code>. ' +
+      'Otherwise use <a href="' + LIVE_URL + '">the live dashboard</a>.';
+  };
+}
 
 const saved = loadLinks();
 if(saved) saved.slice(0,MAX_LOCS).forEach((r,i) => { state.rows[i] = { name:r.name||"", url:r.url||"" }; });
