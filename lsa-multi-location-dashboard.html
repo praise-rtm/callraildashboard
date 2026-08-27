@@ -255,6 +255,20 @@ body{font-family:'Montserrat',sans-serif;background:var(--bg);color:var(--text);
 .rbar .rval{font-size:11.5px;font-weight:800;font-variant-numeric:tabular-nums;min-width:78px;text-align:right}
 .rbar .rval small{font-weight:600;color:var(--text-muted)}
 
+/* SERVICE TYPES */
+.svc{display:grid;grid-template-columns:minmax(150px,230px) 1fr auto;gap:12px;align-items:center;padding:5px 0;
+  cursor:pointer;border-radius:7px}
+.svc:hover{background:var(--surface2)}
+.svc.on{background:var(--primary-light)}
+.svc .s-lbl{font-size:11.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.svc .s-lbl small{display:block;font-weight:600;color:var(--text-muted);font-size:10px;margin-top:1px}
+.svc .s-track{height:17px;background:var(--surface2);border-radius:5px;overflow:hidden;display:flex;border:1px solid var(--border)}
+.svc .s-seg{height:100%}
+.svc .s-val{font-size:11.5px;font-weight:800;font-variant-numeric:tabular-nums;min-width:112px;text-align:right;white-space:nowrap}
+.svc .s-val small{font-weight:600;color:var(--text-muted)}
+.svc.tail{cursor:default;opacity:.72}
+.svc.tail:hover{background:none}
+
 /* ANOMALY */
 .anom{border-left:4px solid var(--slate);background:var(--surface2);border-radius:9px;padding:11px 13px;margin-bottom:9px}
 .anom.high{border-left-color:var(--red);background:#fff5f5}
@@ -517,6 +531,20 @@ svg text{font-family:'Montserrat',sans-serif}
       <div id="trendChart"></div>
     </div>
 
+    <!-- Service types -->
+    <div class="card">
+      <h2><span>Service types</span><span class="sub" id="svcSub"></span>
+        <span class="spacer"></span>
+        <button class="btn btn-sm hidden" id="btnSvcAll">Show all</button>
+      </h2>
+      <div id="svcBars"></div>
+      <div class="legend">
+        <span><i style="background:var(--green)"></i>Booked</span>
+        <span><i style="background:var(--red)"></i>Not booked</span>
+      </div>
+      <div class="note">Taken from each lead's <code>JOB TYPE</code> column. Click a service to filter the lead table.</div>
+    </div>
+
     <!-- Reasons -->
     <div class="grid2" style="margin-bottom:16px">
       <div class="card">
@@ -583,6 +611,8 @@ const state = {
   selTypes:    new Set(),
   hiddenTypes: new Set(),
   reasonFilter: null,
+  jobFilter: null,
+  svcExpanded: false,
   anomExpanded: false,
   showAllMonths: false,
   sort: { key:"date", dir:-1 }
@@ -1303,7 +1333,7 @@ function afterLoadChange(){
   if(!state.selMonths.size) months.slice(-3).forEach(m => state.selMonths.add(m));
   state.selLocs = new Set(state.locs.filter(l => !l.error).map(l => l.id));
   state.hiddenTypes = new Set();
-  state.reasonFilter = null;
+  state.reasonFilter = null; state.jobFilter = null;
   renderRows(); renderLoaded();
   if(state.locs.some(l => l.months.length)){ renderFilters(); refresh(); }
   else showSetup();
@@ -1811,6 +1841,62 @@ function renderTrend(){
 }
 
 /* ============================================================
+   SERVICE TYPES — what the customer actually asked for, from the
+   JOB TYPE column. It is a long tail (a couple of hundred distinct
+   values on a busy sheet), so the ranked head is shown and the rest
+   rolled into one row unless expanded.
+   ============================================================ */
+const SVC_LIMIT = 12;
+function renderServices(leads){
+  const named = leads.filter(L => (L.jobType||"").trim());
+  const blank = leads.length - named.length;
+  const g = groupBy(named, L => L.jobType.trim());
+  const rows = [...g.entries()].map(([j,ls]) => ({ j, a:agg(ls) })).sort((x,y) => y.a.total - x.a.total);
+
+  $("svcSub").textContent = rows.length
+    ? nf(rows.length) + " service type" + (rows.length===1?"":"s") + " across " + nf(named.length) + " leads"
+      + (blank ? " · " + nf(blank) + " leads have no job type" : "")
+    : "";
+  $("btnSvcAll").classList.toggle("hidden", rows.length <= SVC_LIMIT);
+  $("btnSvcAll").textContent = state.svcExpanded ? "Show top " + SVC_LIMIT : "Show all " + nf(rows.length);
+
+  if(!rows.length){
+    $("svcBars").innerHTML = '<div class="empty"><p>No job types recorded on these leads.</p></div>';
+    return;
+  }
+
+  const shown = state.svcExpanded ? rows : rows.slice(0, SVC_LIMIT);
+  const tail  = state.svcExpanded ? [] : rows.slice(SVC_LIMIT);
+  const max = shown[0].a.total;
+
+  const bar = (label, sub, a, clickable, on) => {
+    const w = x => max ? (x / max * 100) : 0;
+    return '<div class="svc' + (clickable ? "" : " tail") + (on ? " on" : "") + '"'
+      + (clickable ? ' data-svc="' + esc(label) + '"' : '') + ' title="' + esc(label) + '">' +
+      '<div class="s-lbl">' + esc(label) + '<small>' + sub + '</small></div>' +
+      '<div class="s-track">' +
+        '<div class="s-seg" style="width:' + w(a.booked)    + '%;background:var(--green)"></div>' +
+        '<div class="s-seg" style="width:' + w(a.notBooked) + '%;background:var(--red)"></div>' +
+        '<div class="s-seg" style="width:' + w(a.unknown)   + '%;background:var(--slate)"></div>' +
+      '</div>' +
+      '<div class="s-val">' + nf(a.total) + ' <small>&middot; ' +
+        (a.rate==null ? "&mdash;" : (a.rate*100).toFixed(0) + "% booked") + '</small></div></div>';
+  };
+
+  let html = shown.map(r => bar(r.j, pct(r.a.total, named.length) + "% of leads with a job type",
+                                r.a, true, state.jobFilter === r.j)).join("");
+  if(tail.length){
+    const t = agg(tail.flatMap(r => g.get(r.j)));
+    html += bar("All other services", tail.length + " more type" + (tail.length===1?"":"s") + " · "
+              + pct(t.total, named.length) + "% of leads with a job type", t, false, false);
+  }
+  $("svcBars").innerHTML = html;
+  $("svcBars").querySelectorAll(".svc[data-svc]").forEach(b => {
+    b.onclick = () => { state.jobFilter = state.jobFilter === b.dataset.svc ? null : b.dataset.svc; refresh(); };
+  });
+}
+
+/* ============================================================
    REASONS NOT BOOKED
    ============================================================ */
 function renderReasons(leads){
@@ -2204,6 +2290,7 @@ function tableRows(leads){
     status: L.booked === true ? "Booked" : L.booked === false ? "Not booked" : "Unmarked"
   }));
   if(state.reasonFilter) rows = rows.filter(r => r.reason === state.reasonFilter);
+  if(state.jobFilter)    rows = rows.filter(r => (r.jobType||"").trim() === state.jobFilter);
   if(st === "booked")    rows = rows.filter(r => r.booked === true);
   if(st === "notbooked") rows = rows.filter(r => r.booked === false);
   if(st === "unknown")   rows = rows.filter(r => r.booked == null);
@@ -2222,7 +2309,9 @@ function tableRows(leads){
 const MAX_ROWS = 600;
 function renderTable(leads){
   const rows = tableRows(leads);
-  $("detailSub").textContent = nf(rows.length) + " leads" + (state.reasonFilter ? " · filtered to “" + state.reasonFilter + "”" : "");
+  $("detailSub").textContent = nf(rows.length) + " leads"
+    + (state.reasonFilter ? " · reason “" + state.reasonFilter + "”" : "")
+    + (state.jobFilter ? " · service “" + state.jobFilter + "”" : "");
   let h = '<thead><tr>' + COLS.map(c =>
     '<th data-k="' + c.k + '">' + c.t + (state.sort.key === c.k ? (state.sort.dir === 1 ? " ▲" : " ▼") : "") + '</th>').join("") + '</tr></thead><tbody>';
   rows.slice(0, MAX_ROWS).forEach(r => {
@@ -2258,7 +2347,8 @@ function renderTable(leads){
   });
   $("detailNote").innerHTML = rows.length > MAX_ROWS
     ? "Showing the first " + nf(MAX_ROWS) + " of " + nf(rows.length) + " rows — export the CSV for the full set."
-    : (state.reasonFilter ? 'Click the same reason again in the panel above to clear this filter.' : "");
+    : ((state.reasonFilter || state.jobFilter)
+        ? 'Click the same ' + (state.jobFilter ? "service" : "reason") + ' again above to clear this filter.' : "");
 }
 
 /* ============================================================
@@ -2383,6 +2473,7 @@ function refresh(){
   renderByLoc(leads);
   renderByType(leads);
   renderTrend();
+  renderServices(leads);
   renderReasons(leads);
   renderMatrix(leads);
   renderTable(leads);
@@ -2399,6 +2490,7 @@ $("btnLoadAll").onclick = loadAll;
 $("btnBack").onclick = showSetup;
 $("btnTrendHistory").onclick = () => ensureTrendBaseline();
 $("btnAnomAll").onclick = () => { state.anomExpanded = !state.anomExpanded; refresh(); };
+$("btnSvcAll").onclick  = () => { state.svcExpanded  = !state.svcExpanded;  renderServices(selectedLeads()); };
 $("btnExportLeads").onclick = exportLeads;
 $("btnExportSummary").onclick = exportSummary;
 $("tblSearch").oninput  = () => renderTable(selectedLeads());
