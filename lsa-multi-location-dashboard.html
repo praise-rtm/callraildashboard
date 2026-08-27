@@ -126,7 +126,9 @@ body{font-family:'Montserrat',sans-serif;background:var(--bg);color:var(--text);
 .mini-actions button:hover{border-color:var(--primary-mid);color:var(--primary)}
 
 /* PER-LOCATION TREND CARDS */
-.loctrend{display:grid;grid-template-columns:repeat(auto-fit,minmax(238px,1fr));gap:12px}
+.loctrend{display:grid;grid-template-columns:repeat(auto-fill,minmax(238px,1fr));gap:12px}
+.lt-axis{display:flex;justify-content:space-between;font-size:9px;font-weight:700;color:var(--text-muted);
+  margin-top:3px;letter-spacing:.2px}
 .lt{border:1px solid var(--border);border-radius:11px;padding:13px 14px;background:var(--surface2);
   border-top:3px solid var(--slate)}
 .lt.up{border-top-color:var(--green)} .lt.down{border-top-color:var(--red)} .lt.flat{border-top-color:var(--slate)}
@@ -158,6 +160,8 @@ body{font-family:'Montserrat',sans-serif;background:var(--bg);color:var(--text);
 .lt-tip .ltt-s{margin-top:6px;font-weight:600;color:rgba(255,255,255,.85);display:flex;align-items:center;flex-wrap:wrap}
 .lt-tip .ltt-s i{width:8px;height:8px;border-radius:2px;display:inline-block;margin-right:5px;flex:none}
 .lt-tip .ltt-r{margin-top:5px;font-weight:700;color:var(--accent-light)}
+.lt-tip .ltt-note{margin-top:6px;padding-top:5px;border-top:1px solid rgba(255,255,255,.16);
+  font-size:10.5px;font-weight:600;color:rgba(255,255,255,.6)}
 
 /* TWO-COLUMN DASHBOARD LAYOUT */
 .layout{display:grid;grid-template-columns:252px minmax(0,1fr);gap:16px;align-items:start}
@@ -1562,7 +1566,7 @@ async function ensureTrendBaseline(){
     j.l.fetched.add(j.m);
   });
   trendBusy = false;
-  renderLocTrend(); renderFilters(); renderLoaded();
+  renderFilters(); renderLoaded(); refresh();
 }
 
 function locTrendStats(loc, cur, win){
@@ -1596,8 +1600,8 @@ function sparkBars(series, locName){
   const W = 210, H = 40, gap = 3;
   const bw = (W - gap*(series.length-1)) / series.length;
   const max = Math.max(1, ...series.map(x => x.n));
-  let s = '<svg viewBox="0 0 ' + W + ' ' + (H+13) + '" preserveAspectRatio="none" '
-        + 'style="display:block;width:100%;height:' + (H+13) + 'px">';
+  let s = '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" '
+        + 'style="display:block;width:100%;height:' + H + 'px">';
   series.forEach((x,i) => {
     const h = x.has ? Math.max(2, x.n / max * H) : 0;
     const px = i * (bw + gap);
@@ -1609,19 +1613,17 @@ function sparkBars(series, locName){
          + (last ? "#f99e23" : "#9db8cc") + '"/>';
     }
   });
-  s += '<text x="0" y="'+(H+11)+'" font-size="8.5" fill="#64748b" font-weight="700">' + monthLabel(series[0].m) + '</text>';
-  s += '<text x="'+W+'" y="'+(H+11)+'" font-size="8.5" fill="#64748b" font-weight="700" text-anchor="end">'
-     + monthLabel(series[series.length-1].m) + '</text>';
   // hit layer last so it sits on top of the bars
   series.forEach((x,i) => {
     s += '<rect class="lt-hit" data-i="'+i+'"'
-       + ' data-loc="' + esc(locName) + '" data-m="' + x.m + '" data-has="' + (x.has?1:0) + '"'
+       + ' data-title="' + esc(locName) + '" data-m="' + x.m + '" data-has="' + (x.has?1:0) + '"'
        + ' data-n="' + x.n + '" data-b="' + x.booked + '" data-nb="' + x.notBooked + '"'
        + ' data-rate="' + (x.rate == null ? "" : (x.rate*100).toFixed(1)) + '"'
        + ' x="' + (i * (bw + gap) - gap/2) + '" y="0" width="' + (bw + gap) + '" height="' + H + '"'
        + ' fill="transparent"/>';
   });
-  return s + '</svg>';
+  return s + '</svg><div class="lt-axis"><span>' + monthLabel(series[0].m) + '</span><span>'
+       + monthLabel(series[series.length-1].m) + '</span></div>';
 }
 
 /* Hover read-out for the sparkline. Delegated from the container so it keeps
@@ -1646,8 +1648,8 @@ function placeTip(e){
   t.style.left = Math.max(8, x) + "px";
   t.style.top  = y + "px";
 }
-function wireTrendTooltip(){
-  const box = $("locTrend"), t = trendTip();
+function wireTrendTooltip(boxId){
+  const box = $(boxId), t = trendTip();
   let hot = null;
   const clear = () => { if(hot){ hot.classList.remove("hot"); hot = null; } t.style.display = "none"; };
   box.addEventListener("mouseover", e => {
@@ -1658,7 +1660,7 @@ function wireTrendTooltip(){
     if(hot) hot.classList.add("hot");
     const has = h.dataset.has === "1";
     t.innerHTML =
-      '<div class="ltt-loc">' + esc(h.dataset.loc) + '</div>' +
+      '<div class="ltt-loc">' + esc(h.dataset.title) + '</div>' +
       '<div class="ltt-m">' + monthLong(h.dataset.m) + '</div>' +
       (has
         ? '<div class="ltt-n">' + nf(+h.dataset.n) + ' <span>lead' + (+h.dataset.n === 1 ? "" : "s") + '</span></div>' +
@@ -1667,7 +1669,8 @@ function wireTrendTooltip(){
               '<i style="background:var(--red);margin-left:9px"></i>' + nf(+h.dataset.nb) + ' not booked</div>' +
               (h.dataset.rate ? '<div class="ltt-r">' + h.dataset.rate + '% booking rate</div>' : '')
             : '<div class="ltt-r">This month\'s tab is empty</div>')
-        : '<div class="ltt-r">Not downloaded</div>');
+        : '<div class="ltt-r">Not downloaded</div>') +
+      (h.dataset.note ? '<div class="ltt-note">' + esc(h.dataset.note) + '</div>' : '');
     t.style.display = "block";
     placeTip(e);
   });
@@ -1690,10 +1693,7 @@ function renderLocTrend(){
     return;
   }
   const win = trendWindow(cur);
-  $("locTrendSub").innerHTML = monthLong(cur) + " vs. the average of the " + TREND_BASELINE
-    + " months before it (" + monthLabel(win[0]) + " &ndash; " + monthLabel(win[win.length-2]) + ")"
-    + ' &middot; <span style="color:var(--accent-dark)">always the last ' + TREND_BASELINE
-    + " months plus the current one, whatever the month filter says</span>"
+  $("locTrendSub").innerHTML = MONTHS[+cur.split("-")[1] - 1] + " vs. the past " + TREND_BASELINE + " months"
     + (trendBusy ? ' &middot; <span style="color:var(--primary-mid)">loading history&hellip;</span>' : "");
 
   // The baseline loads itself; the button is only a retry for months that failed.
@@ -1734,11 +1734,24 @@ function renderLocTrend(){
 /* ============================================================
    MONTHLY TREND (hand-drawn SVG — stacked bars + booking-rate line)
    ============================================================ */
-function renderTrend(leads){
-  const months = [...state.selMonths].sort();
+function renderTrend(){
+  // The selected months, plus the trend window, so the chart always carries the
+  // last six months of context even when the filter is one month wide.
+  const win = trendWindow(trendCurrentMonth());
+  const months = [...new Set([...state.selMonths, ...win])].sort();
   if(!months.length){ $("trendChart").innerHTML = '<div class="empty"><p>Select at least one month.</p></div>'; return; }
-  const per = months.map(m => { const ls = leads.filter(L => L.month === m); return { m, a:agg(ls) }; });
+
+  // Month-agnostic pool: the context months sit outside the current selection.
+  const locs = activeLocs(), pool = [];
+  locs.forEach(l => l.leads.forEach(L => { if(state.selTypes.has(L.leadType)) pool.push(L); }));
+  const per = months.map(m => ({
+    m,
+    a: agg(pool.filter(L => L.month === m)),
+    inSel: state.selMonths.has(m),
+    has: locs.some(l => l.fetched.has(m))
+  }));
   const maxT = Math.max(1, ...per.map(p => p.a.total));
+  const anyContext = per.some(p => !p.inSel);
 
   const W = 1000, H = 300, ML = 46, MR = 46, MT = 18, MB = 46;
   const iw = W - ML - MR, ih = H - MT - MB;
@@ -1747,42 +1760,53 @@ function renderTrend(leads){
   const y  = v => MT + ih - (v / maxT) * ih;
 
   let s = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="display:block" preserveAspectRatio="xMidYMid meet">';
-  // grid + left axis (volume)
   for(let g=0; g<=4; g++){
     const v = maxT * g / 4, yy = y(v);
     s += '<line x1="' + ML + '" y1="' + yy + '" x2="' + (W-MR) + '" y2="' + yy + '" stroke="#dde3ed" stroke-width="1"/>';
     s += '<text x="' + (ML-8) + '" y="' + (yy+4) + '" font-size="10" fill="#64748b" text-anchor="end" font-weight="600">' + Math.round(v) + '</text>';
   }
-  // right axis (booking rate 0–100%)
   for(let g=0; g<=4; g++){
     const yy = MT + ih - ih * g/4;
     s += '<text x="' + (W-MR+8) + '" y="' + (yy+4) + '" font-size="10" fill="#f99e23" text-anchor="start" font-weight="700">' + (g*25) + '%</text>';
   }
   per.forEach((p,i) => {
     const x = cx(i) - bw/2;
+    const op = p.inSel ? 1 : 0.4;                 // context months sit back
     const hB = p.a.total ? (p.a.booked  /maxT)*ih : 0;
     const hN = p.a.total ? (p.a.notBooked/maxT)*ih : 0;
     const hU = p.a.total ? (p.a.unknown /maxT)*ih : 0;
     let yy = MT + ih;
-    yy -= hB; s += '<rect x="'+x+'" y="'+yy+'" width="'+bw+'" height="'+hB+'" fill="#22c55e" rx="2"><title>'+monthLong(p.m)+' — '+p.a.booked+' booked</title></rect>';
-    yy -= hN; s += '<rect x="'+x+'" y="'+yy+'" width="'+bw+'" height="'+hN+'" fill="#ef4444"><title>'+monthLong(p.m)+' — '+p.a.notBooked+' not booked</title></rect>';
-    yy -= hU; s += '<rect x="'+x+'" y="'+yy+'" width="'+bw+'" height="'+hU+'" fill="#94a3b8" rx="2"><title>'+monthLong(p.m)+' — '+p.a.unknown+' unmarked</title></rect>';
-    s += '<text x="'+cx(i)+'" y="'+(MT+ih+17)+'" font-size="10.5" fill="#1a202c" text-anchor="middle" font-weight="700">'+monthLabel(p.m)+'</text>';
+    yy -= hB; s += '<rect x="'+x+'" y="'+yy+'" width="'+bw+'" height="'+hB+'" fill="#22c55e" opacity="'+op+'" rx="2"/>';
+    yy -= hN; s += '<rect x="'+x+'" y="'+yy+'" width="'+bw+'" height="'+hN+'" fill="#ef4444" opacity="'+op+'"/>';
+    yy -= hU; s += '<rect x="'+x+'" y="'+yy+'" width="'+bw+'" height="'+hU+'" fill="#94a3b8" opacity="'+op+'" rx="2"/>';
+    s += '<text x="'+cx(i)+'" y="'+(MT+ih+17)+'" font-size="10.5" fill="'+(p.inSel?"#1a202c":"#94a3b8")+'" text-anchor="middle" font-weight="700">'+monthLabel(p.m)+'</text>';
     s += '<text x="'+cx(i)+'" y="'+(MT+ih+31)+'" font-size="9.5" fill="#64748b" text-anchor="middle" font-weight="600">'+nf(p.a.total)+' leads</text>';
   });
-  // booking-rate line on the right axis
   const pts = per.map((p,i) => p.a.rate == null ? null : [cx(i), MT + ih - p.a.rate * ih]).filter(Boolean);
   if(pts.length > 1)
     s += '<polyline points="' + pts.map(p => p[0]+","+p[1]).join(" ") + '" fill="none" stroke="#f99e23" stroke-width="2.5" stroke-linejoin="round"/>';
   per.forEach((p,i) => {
     if(p.a.rate == null) return;
     const yy = MT + ih - p.a.rate * ih;
-    s += '<circle cx="'+cx(i)+'" cy="'+yy+'" r="4.5" fill="#fff" stroke="#f99e23" stroke-width="2.5"><title>'+monthLong(p.m)+' — '+(p.a.rate*100).toFixed(1)+'% booking rate</title></circle>';
-    s += '<text x="'+cx(i)+'" y="'+(yy-10)+'" font-size="10" fill="#d7891f" text-anchor="middle" font-weight="800">'+(p.a.rate*100).toFixed(0)+'%</text>';
+    s += '<circle cx="'+cx(i)+'" cy="'+yy+'" r="4.5" fill="#fff" stroke="#f99e23" stroke-width="2.5" opacity="'+(p.inSel?1:0.45)+'"/>';
+    s += '<text x="'+cx(i)+'" y="'+(yy-10)+'" font-size="10" fill="#d7891f" text-anchor="middle" font-weight="800" opacity="'+(p.inSel?1:0.45)+'">'+(p.a.rate*100).toFixed(0)+'%</text>';
+  });
+  // hit layer on top: one full-height target per month
+  const colW = iw / per.length;
+  per.forEach((p,i) => {
+    s += '<rect class="lt-hit"'
+       + ' data-title="' + esc(locs.length === 1 ? locs[0].name : "All " + locs.length + " locations") + '"'
+       + ' data-m="' + p.m + '" data-has="' + (p.has ? 1 : 0) + '"'
+       + ' data-n="' + p.a.total + '" data-b="' + p.a.booked + '" data-nb="' + p.a.notBooked + '"'
+       + ' data-rate="' + (p.a.rate == null ? "" : (p.a.rate*100).toFixed(1)) + '"'
+       + (p.inSel ? '' : ' data-note="Outside your month selection — shown for context"')
+       + ' x="' + (ML + colW*i) + '" y="' + MT + '" width="' + colW + '" height="' + ih + '" fill="transparent"/>';
   });
   s += '</svg>';
   s += '<div class="legend"><span><i style="background:var(--green)"></i>Booked</span><span><i style="background:var(--red)"></i>Not booked</span>'
-     + '<span><i style="background:var(--slate)"></i>Unmarked</span><span><i style="background:var(--accent)"></i>Booking rate (right axis)</span></div>';
+     + '<span><i style="background:var(--slate)"></i>Unmarked</span><span><i style="background:var(--accent)"></i>Booking rate (right axis)</span>'
+     + (anyContext ? '<span style="opacity:.65"><i style="background:var(--slate);opacity:.4"></i>Faded &mdash; outside your selection, shown for context</span>' : '')
+     + '</div>';
   $("trendChart").innerHTML = s;
 }
 
@@ -2358,7 +2382,7 @@ function refresh(){
   renderInsights(leads);
   renderByLoc(leads);
   renderByType(leads);
-  renderTrend(leads);
+  renderTrend();
   renderReasons(leads);
   renderMatrix(leads);
   renderTable(leads);
@@ -2437,7 +2461,8 @@ wireRangePicker();
 
 const saved = loadLinks();
 if(saved) saved.slice(0,MAX_LOCS).forEach((r,i) => { state.rows[i] = { name:r.name||"", url:r.url||"" }; });
-wireTrendTooltip();
+wireTrendTooltip("locTrend");
+wireTrendTooltip("trendChart");
 renderRows();
 showSetup();
 </script>
