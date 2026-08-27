@@ -1229,6 +1229,7 @@ async function loadAll(){
     await ensureMonths(want);
     state.hiddenTypes = new Set();
     renderRows(); renderLoaded(); renderFilters(); refresh();
+    ensureTrendBaseline();          // fills the six-month baseline in the background
     if(rangeMiss)
       alert("None of the sheets have tabs for " + monthLabel(state.range.from) + " – " + monthLabel(state.range.to)
           + ".\nShowing the " + want.length + " most recent months they do have instead.");
@@ -1506,21 +1507,40 @@ const TREND_BASELINE = 6;
 
 /** The month this comparison treats as "current": the newest month any loaded
     location has a tab for that isn't in the future. */
+const loadedLocs = () => state.locs.filter(l => !l.error && l.months.length);
 function trendCurrentMonth(){
-  const all = [...new Set(activeLocs().flatMap(l => l.months))].filter(m => m <= nowKey()).sort();
+  const all = [...new Set(loadedLocs().flatMap(l => l.months))].filter(m => m <= nowKey()).sort();
   return all.length ? all[all.length-1] : null;
 }
 /** Current month plus the six before it, as a plain calendar run. */
 function trendWindow(cur){
   return cur ? monthsBetween(shiftMonth(cur, -TREND_BASELINE), cur) : [];
 }
-/** (location, month) pairs inside the window that exist but aren't downloaded. */
-function trendMissing(){
+/** (location, month) jobs inside the window that exist but aren't downloaded. */
+function trendMissingJobs(){
   const win = trendWindow(trendCurrentMonth()), out = [];
-  activeLocs().forEach(l => win.forEach(m => {
-    if(l.months.includes(m) && !l.fetched.has(m)) out.push(m);
+  loadedLocs().forEach(l => win.forEach(m => {
+    if(l.months.includes(m) && !l.fetched.has(m)) out.push({ l, m });
   }));
-  return [...new Set(out)];
+  return out;
+}
+
+/** The six-month read is the point of this card, so it fetches its own history
+    instead of waiting to be asked — the month filter can be one month wide and
+    the comparison still stands up. Runs after the dashboard is already on screen,
+    and never touches the month selection. */
+let trendBusy = false;
+async function ensureTrendBaseline(){
+  const jobs = trendMissingJobs();
+  if(!jobs.length) return;
+  trendBusy = true; renderLocTrend();
+  await pool(jobs, 6, async j => {
+    const leads = await fetchMonth(j.l, j.m);
+    j.l.leads.push(...leads);
+    j.l.fetched.add(j.m);
+  });
+  trendBusy = false;
+  renderLocTrend(); renderFilters(); renderLoaded();
 }
 
 function locTrendStats(loc, cur, win){
@@ -1582,19 +1602,24 @@ function renderLocTrend(){
     return;
   }
   const win = trendWindow(cur);
-  $("locTrendSub").textContent = monthLong(cur) + " vs. the average of the " + TREND_BASELINE
-    + " months before it (" + monthLabel(win[0]) + " – " + monthLabel(win[win.length-2]) + ")";
+  $("locTrendSub").innerHTML = monthLong(cur) + " vs. the average of the " + TREND_BASELINE
+    + " months before it (" + monthLabel(win[0]) + " &ndash; " + monthLabel(win[win.length-2]) + ")"
+    + ' &middot; <span style="color:var(--accent-dark)">always the last ' + TREND_BASELINE
+    + " months plus the current one, whatever the month filter says</span>"
+    + (trendBusy ? ' &middot; <span style="color:var(--primary-mid)">loading history&hellip;</span>' : "");
 
-  const missing = trendMissing();
+  // The baseline loads itself; the button is only a retry for months that failed.
+  const missing = trendBusy ? [] : trendMissingJobs();
   $("btnTrendHistory").classList.toggle("hidden", !missing.length);
   if(missing.length)
-    $("btnTrendHistory").textContent = "Load " + missing.length + " missing month"
+    $("btnTrendHistory").textContent = "Retry " + missing.length + " month"
       + (missing.length===1?"":"s") + " of history";
 
   box.innerHTML = locs.map(l => {
     const t = locTrendStats(l, cur, win);
     const dir = t.pct == null ? "flat" : t.pct >= 1 ? "up" : t.pct <= -1 ? "down" : "flat";
-    const word = t.pct == null ? "no baseline" : dir === "up" ? "increase" : dir === "down" ? "decline" : "flat";
+    const word = t.pct == null ? (trendBusy ? "working it out" : "no baseline")
+               : dir === "up" ? "increase" : dir === "down" ? "decline" : "flat";
     const arrow = dir === "up" ? "&#9650;" : dir === "down" ? "&#9660;" : "&#9644;";
     const ratePt = (t.curRate != null && t.baseRate != null)
       ? ((t.curRate - t.baseRate) * 100) : null;
@@ -1612,8 +1637,8 @@ function renderLocTrend(){
         (ratePt == null ? "" : ' <span style="color:' + (ratePt >= 0 ? "var(--green-dark)" : "var(--red)") + '">' +
           (ratePt >= 0 ? "+" : "&minus;") + Math.abs(ratePt).toFixed(1) + "pt</span>") +
       '</span></div>' +
-      (t.missing ? '<div class="lt-missing">' + t.missing + ' month' + (t.missing===1?"":"s") +
-        ' of this window not downloaded</div>' : '') +
+      (t.missing ? '<div class="lt-missing">' + (trendBusy ? 'Loading ' : '') + t.missing + ' month' +
+        (t.missing===1?"":"s") + (trendBusy ? '&hellip;' : ' of this window could not be downloaded') + '</div>' : '') +
     '</div>';
   }).join("");
 }
@@ -2257,17 +2282,10 @@ $("btnClear").onclick = () => {
   state.selMonths = new Set(); state.selLocs = new Set(); state.hiddenTypes = new Set();
   state.reasonFilter = null; saveLinks(); afterLoadChange();
 };
-$("btnDemo").onclick = () => { loadDemo(); showDash(); };
+$("btnDemo").onclick = () => { loadDemo(); showDash(); ensureTrendBaseline(); };
 $("btnLoadAll").onclick = loadAll;
 $("btnBack").onclick = showSetup;
-$("btnTrendHistory").onclick = async () => {
-  const b = $("btnTrendHistory"), was = b.textContent;
-  b.disabled = true; b.textContent = "Loading…";
-  // Fetch the baseline months without disturbing what the rest of the page shows.
-  await ensureMonths([...new Set([...trendMissing(), ...state.selMonths])]);
-  b.disabled = false; b.textContent = was;
-  renderFilters(); refresh();
-};
+$("btnTrendHistory").onclick = () => ensureTrendBaseline();
 $("btnAnomAll").onclick = () => { state.anomExpanded = !state.anomExpanded; refresh(); };
 $("btnExportLeads").onclick = exportLeads;
 $("btnExportSummary").onclick = exportSummary;
