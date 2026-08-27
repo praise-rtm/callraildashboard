@@ -1058,10 +1058,11 @@ function shiftMonth(key, delta){
   return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0");
 }
 function monthsBetween(from, to){
+  if(!from || !to) return [];
   const out = [];
   let k = from <= to ? from : to;
   const end = from <= to ? to : from;
-  while(k <= end){ out.push(k); k = shiftMonth(k, 1); }
+  while(k <= end && out.length < 240){ out.push(k); k = shiftMonth(k, 1); }
   return out;
 }
 const RANGE_SPAN = 84;                       // seven years of options is plenty
@@ -1181,6 +1182,9 @@ async function loadAll(){
   const wanted = state.rows.map((r,i) => ({ ...r, rowIdx:i, sheetId:sheetIdFromUrl(r.url) }))
                            .filter(r => (r.url||"").trim());
   if(!wanted.length){ alert("Paste at least one Google Sheets link first."); return; }
+
+  if(!state.range.from || !state.range.to)          // picker never initialised — don't take the load down with it
+    setRange(shiftMonth(nowKey(), -2), nowKey());
 
   loading = true;
   let rangeMiss = false;
@@ -2428,6 +2432,8 @@ if(OPAQUE_ORIGIN){
       'Otherwise use <a href="' + LIVE_URL + '">the live dashboard</a>.';
   };
 }
+
+wireRangePicker();
 
 const saved = loadLinks();
 if(saved) saved.slice(0,MAX_LOCS).forEach((r,i) => { state.rows[i] = { name:r.name||"", url:r.url||"" }; });
