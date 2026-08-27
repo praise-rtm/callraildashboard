@@ -486,7 +486,11 @@ svg text{font-family:'Montserrat',sans-serif}
         <button class="btn btn-sm hidden" id="btnTrendHistory">Load 6-month history</button>
       </h2>
       <div class="loctrend" id="locTrend"></div>
-    </div>
+      <div class="note">The headline figure is the change in <b>lead volume</b>:
+        (this month &minus; the average of the 6 months before it) &divide; that average.
+        Months the location has no tab for are left out of the average rather than counted as zero.
+        The booking-rate line compares this month's rate with the 6 baseline months pooled, in
+        percentage points. Hover either figure for the numbers behind it.</div>
 
     <!-- Anomalies -->
     <div class="card">
@@ -1772,14 +1776,24 @@ function renderLocTrend(){
       ? ((t.curRate - t.baseRate) * 100) : null;
     return '<div class="lt ' + dir + '">' +
       '<div class="lt-name" title="' + esc(l.name) + '">' + esc(l.name) + '</div>' +
-      '<div class="lt-delta"><span class="lt-pct">' +
+      '<div class="lt-delta" title="' + esc(
+          t.pct == null ? "No baseline months downloaded yet"
+          : "(" + t.cur + " leads in " + monthLabel(cur) + " − " + t.avg.toFixed(1) + " avg) ÷ "
+            + t.avg.toFixed(1) + " × 100 = " + t.pct.toFixed(1) + "%"
+            + "   |   baseline: " + t.base.map(x => monthLabel(x.m) + " " + x.n).join(", ")
+        ) + '"><span class="lt-pct">' +
         (t.pct == null ? "&mdash;" : arrow + " " + Math.abs(t.pct).toFixed(1) + "%") +
       '</span><span class="lt-word">' + word + '</span></div>' +
       '<div class="lt-vs"><b>' + (t.cur == null ? "&mdash;" : nf(t.cur)) + '</b> leads in ' + monthLabel(cur) +
         ' vs. <b>' + (t.avg == null ? "&mdash;" : t.avg.toFixed(0)) + '</b> avg' +
         (t.base.length ? ' over ' + t.base.length + ' month' + (t.base.length===1?"":"s") : '') + '</div>' +
       '<div class="lt-spark">' + sparkBars(t.series, l.name) + '</div>' +
-      '<div class="lt-foot"><span>Booking rate</span><span class="v">' +
+      '<div class="lt-foot" title="' + esc(
+          (t.curRate == null || t.baseRate == null) ? "Booking rate for " + monthLabel(cur)
+          : monthLabel(cur) + " booked " + (t.curRate*100).toFixed(1) + "%, against "
+            + (t.baseRate*100).toFixed(1) + "% across the 6 baseline months pooled — a difference of "
+            + ((t.curRate - t.baseRate)*100).toFixed(1) + " percentage points"
+        ) + '"><span>Booking rate</span><span class="v">' +
         (t.curRate == null ? "&mdash;" : (t.curRate*100).toFixed(1) + "%") +
         (ratePt == null ? "" : ' <span style="color:' + (ratePt >= 0 ? "var(--green-dark)" : "var(--red)") + '">' +
           (ratePt >= 0 ? "+" : "&minus;") + Math.abs(ratePt).toFixed(1) + "pt</span>") +
