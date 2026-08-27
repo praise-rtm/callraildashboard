@@ -1,0 +1,2163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>LSA Multi-Location Performance Dashboard &mdash; Real Time Marketing</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  /* Real Time Marketing palette — same tokens as callrail-dashboard.html */
+  --orange:#f99e23; --orange-dark:#d7891f; --blue:#004b74; --navy:#042232;
+  --primary:#004b74; --primary-dark:#042232; --primary-mid:#1a6d9e; --primary-light:#d6eaf8;
+  --accent:#f99e23; --accent-dark:#d7891f; --accent-light:#fcd8a3;
+  --green:#22c55e; --green-dark:#15803d; --yellow:#f59e0b; --red:#ef4444; --purple:#8b5cf6; --slate:#64748b;
+  --bg:#eef2f7; --surface:#ffffff; --surface2:#f4f7fb; --border:#dde3ed;
+  --text:#1a202c; --text-muted:#64748b; --header-h:66px;
+}
+body{font-family:'Montserrat',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+
+/* HEADER */
+.header{position:sticky;top:0;z-index:200;height:var(--header-h);background:linear-gradient(100deg,var(--navy),var(--blue));
+  display:flex;align-items:center;padding:0 22px;gap:16px;box-shadow:0 2px 14px rgba(4,34,50,.35)}
+.header-divider{width:2px;height:34px;background:var(--accent);border-radius:2px}
+.header-text h1{color:#fff;font-size:15.5px;font-weight:800;letter-spacing:.3px;line-height:1.1}
+.header-text p{color:rgba(255,255,255,.6);font-size:11px;font-weight:500;margin-top:2px}
+.header-right{margin-left:auto;display:flex;align-items:center;gap:14px}
+.header-logo{height:34px;width:auto;display:block}
+.chip-count{font-size:11px;font-weight:700;padding:6px 12px;border-radius:20px;display:flex;align-items:center;gap:7px;
+  background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.22);color:rgba(255,255,255,.85)}
+.chip-count .dot{width:8px;height:8px;border-radius:50%;background:var(--slate)}
+.chip-count.on .dot{background:var(--green);box-shadow:0 0 0 3px rgba(34,197,94,.25)}
+
+.wrap{padding:20px 22px 70px;max-width:100%;margin:0 auto}
+
+/* CARDS */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:16px 18px;margin-bottom:16px;
+  box-shadow:0 2px 10px rgba(4,34,50,.05)}
+.card > h2{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:var(--primary);
+  margin-bottom:13px;display:flex;align-items:center;gap:9px}
+.card > h2 .sub{font-size:10.5px;font-weight:600;color:var(--text-muted);text-transform:none;letter-spacing:0}
+.card > h2 .spacer{flex:1}
+
+/* ORIGIN WARNING */
+.warnbox{border:1px solid #f3c0c0;background:#fff5f5;border-left:4px solid var(--red);border-radius:10px;
+  padding:13px 15px;margin-bottom:14px;font-size:12.5px;line-height:1.65}
+.warnbox h4{font-size:12.5px;font-weight:800;color:#b91c1c;margin-bottom:6px}
+.warnbox code{background:#fff;padding:1px 6px;border-radius:5px;border:1px solid #f3c0c0;font-size:11.5px}
+.warnbox ol{margin:8px 0 0 18px}
+.warnbox li{margin-bottom:4px}
+
+/* LINK ROWS */
+.linkrow{display:grid;grid-template-columns:26px minmax(120px,190px) 1fr minmax(180px,270px);gap:10px;align-items:center;
+  padding:8px 0;border-bottom:1px solid var(--border)}
+.linkrow:last-of-type{border-bottom:none}
+.slot-num{width:22px;height:22px;border-radius:6px;background:var(--primary);color:#fff;font-size:10.5px;font-weight:800;
+  display:flex;align-items:center;justify-content:center;flex:none}
+.linkrow.ok .slot-num{background:var(--green-dark)}
+.linkrow.err .slot-num{background:var(--red)}
+.linkrow input{padding:9px 11px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:12px;
+  background:var(--surface);color:var(--text);min-width:0;width:100%}
+.linkrow input:focus{outline:none;border-color:var(--primary-mid);box-shadow:0 0 0 3px rgba(26,109,158,.14)}
+.linkrow input.lr-url{font-size:11.5px}
+.linkrow.err input.lr-url{border-color:#f3c0c0;background:#fff7f7}
+.lr-status{font-size:11px;line-height:1.5;color:var(--text-muted);font-weight:600}
+.lr-status b{color:var(--primary)}
+.lr-status .ok{color:var(--green-dark)}
+.lr-status .bad{color:var(--red)}
+.lr-status .wait{color:var(--accent-dark)}
+
+.loadbar{display:flex;gap:14px;align-items:flex-end;margin-top:14px;padding-top:14px;border-top:1px solid var(--border);flex-wrap:wrap}
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted)}
+.field select{padding:10px 12px;border:1px solid var(--border);border-radius:9px;font-family:inherit;font-size:12.5px;
+  background:var(--surface);color:var(--text);min-width:180px}
+.field select:focus{outline:none;border-color:var(--primary-mid);box-shadow:0 0 0 3px rgba(26,109,158,.14)}
+.spacer{flex:1}
+
+/* PROGRESS */
+.progress-wrap{margin-top:14px;display:none}
+.progress-wrap.show{display:block}
+.progress-bar{height:9px;background:var(--surface2);border-radius:8px;overflow:hidden;border:1px solid var(--border)}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-dark));width:0;transition:width .2s}
+.progress-meta{display:flex;justify-content:space-between;font-size:11.5px;font-weight:600;color:var(--text-muted);margin-top:6px}
+.progress-meta b{color:var(--primary);font-weight:700}
+
+/* LOADED SUMMARY */
+.loaded{display:flex;flex-wrap:wrap;gap:9px;margin-top:13px}
+.loaded-item{border:1px solid var(--border);border-radius:10px;padding:9px 12px;background:var(--surface2);font-size:11.5px;
+  line-height:1.55;min-width:190px}
+.loaded-item.bad{border-color:#f3c0c0;background:#fff7f7}
+.loaded-item .nm{font-weight:800;color:var(--text);display:block;margin-bottom:2px}
+.loaded-item .mt{color:var(--text-muted);font-weight:600}
+.loaded-item .mt b{color:var(--primary)}
+.loaded-item .bad-msg{color:var(--red);font-weight:600}
+.dot-key{width:9px;height:9px;border-radius:50%;flex:none;display:inline-block}
+
+/* BUTTONS */
+.btn{font-family:inherit;font-size:12.5px;font-weight:700;padding:10px 16px;border-radius:9px;cursor:pointer;
+  border:1px solid var(--border);background:var(--surface);color:var(--text);transition:.15s;white-space:nowrap;
+  display:inline-flex;align-items:center;gap:7px}
+.btn:hover:not(:disabled){border-color:var(--primary-mid);color:var(--primary)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn-primary{background:var(--primary);color:#fff;border-color:var(--primary)}
+.btn-primary:hover:not(:disabled){background:var(--primary-dark);color:#fff}
+.btn-accent{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn-accent:hover:not(:disabled){background:var(--accent-dark);color:#fff}
+.btn-sm{font-size:11px;padding:6px 11px;border-radius:7px}
+
+/* FILTER CHIPS */
+.chiprow{display:flex;flex-wrap:wrap;gap:7px;align-items:center}
+.chip{font-size:11.5px;font-weight:700;padding:7px 13px;border-radius:20px;cursor:pointer;border:1px solid var(--border);
+  background:var(--surface2);color:var(--text-muted);transition:.13s;user-select:none;display:inline-flex;align-items:center;gap:7px}
+.chip:hover{border-color:var(--primary-mid);color:var(--primary)}
+.chip.on{background:var(--primary);border-color:var(--primary);color:#fff}
+.chip.on:hover{background:var(--primary-dark);color:#fff}
+.chip.loc.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.chip .n{font-size:10px;font-weight:700;opacity:.72;font-variant-numeric:tabular-nums}
+.filter-lbl{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);
+  margin-right:4px;flex:none;width:78px}
+.filter-line{display:flex;gap:10px;align-items:flex-start;margin-bottom:11px}
+.filter-line:last-child{margin-bottom:0}
+.mini-actions{display:flex;gap:5px;margin-left:auto;flex:none}
+.mini-actions button{font-size:10px;font-weight:700;padding:5px 9px;border-radius:6px;border:1px solid var(--border);
+  background:var(--surface);color:var(--text-muted);cursor:pointer}
+.mini-actions button:hover{border-color:var(--primary-mid);color:var(--primary)}
+
+/* TWO-COLUMN DASHBOARD LAYOUT */
+.layout{display:grid;grid-template-columns:252px minmax(0,1fr);gap:16px;align-items:start}
+.main{min-width:0}
+.sidebar{position:sticky;top:calc(var(--header-h) + 18px);display:flex;flex-direction:column;gap:12px;
+  max-height:calc(100vh - var(--header-h) - 34px);overflow-y:auto;padding-right:2px}
+.back-btn{width:100%;justify-content:center}
+.side-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:13px 14px;
+  box-shadow:0 2px 10px rgba(4,34,50,.05)}
+.side-card h3{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:var(--text-muted);
+  margin-bottom:10px;display:flex;align-items:center}
+.side-act{margin-left:auto;font-size:10px;font-weight:700;text-transform:none;letter-spacing:0;color:var(--primary-mid);
+  cursor:pointer;padding:2px 7px;border-radius:5px;border:1px solid var(--border)}
+.side-act:hover{background:var(--surface2);color:var(--primary)}
+.side-full{width:100%;justify-content:center;margin-bottom:7px}
+.side-full:last-child{margin-bottom:0}
+
+/* LOCATION PANELS */
+.locpanel{border:1px solid var(--border);border-left:3px solid var(--slate);border-radius:9px;padding:10px 11px;
+  margin-bottom:9px;cursor:pointer;transition:.14s;background:var(--surface2);user-select:none}
+.locpanel:last-child{margin-bottom:0}
+.locpanel:hover{border-color:var(--primary-mid)}
+.locpanel.on{background:var(--surface);border-left-color:var(--accent);box-shadow:0 1px 6px rgba(4,34,50,.07)}
+.locpanel.off{opacity:.52}
+.lp-name{font-size:12px;font-weight:800;color:var(--text);line-height:1.3;margin-bottom:6px;
+  display:flex;align-items:center;gap:6px}
+.lp-name .tick{width:13px;height:13px;border-radius:4px;border:1.5px solid var(--border);flex:none;
+  display:flex;align-items:center;justify-content:center;font-size:9px;color:#fff;line-height:1}
+.locpanel.on .lp-name .tick{background:var(--accent);border-color:var(--accent)}
+.lp-stats{display:flex;justify-content:space-between;align-items:baseline;font-size:10.5px;color:var(--text-muted);
+  font-weight:600;margin-bottom:6px}
+.lp-stats b{font-size:14px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums}
+.lp-rate{font-weight:800;font-variant-numeric:tabular-nums}
+.lp-bar{height:6px;border-radius:4px;overflow:hidden;display:flex;background:var(--border)}
+.lp-bar i{height:100%;display:block}
+.lp-sub{font-size:10px;color:var(--text-muted);font-weight:600;margin-top:5px;line-height:1.45}
+
+/* PRE-LOAD RANGE */
+.rangebar{display:flex;gap:14px;align-items:flex-end;margin-top:13px;flex-wrap:wrap}
+.rangebar select{min-width:150px}
+.range-summary{font-size:11.5px;font-weight:700;color:var(--primary);padding-bottom:11px}
+.range-summary span{color:var(--text-muted);font-weight:600}
+#rangePresets .chip{font-size:11.5px}
+
+/* Month chips that haven't been downloaded read as available-but-idle. */
+.chip.pending{border-style:dashed;color:var(--text-muted)}
+.chip.pending.on{background:var(--primary-mid);border-color:var(--primary-mid);color:#fff;border-style:solid}
+
+@media (max-width:1000px){
+  .layout{grid-template-columns:1fr}
+  .sidebar{position:static;max-height:none;overflow:visible}
+}
+
+/* KPI */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:12px;margin-bottom:16px}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 15px;
+  box-shadow:0 2px 10px rgba(4,34,50,.05);border-top:3px solid var(--primary)}
+.kpi.green{border-top-color:var(--green)} .kpi.red{border-top-color:var(--red)}
+.kpi.orange{border-top-color:var(--accent)} .kpi.purple{border-top-color:var(--purple)}
+.kpi.slate{border-top-color:var(--slate)}
+.kpi-val{font-size:25px;font-weight:800;color:var(--text);line-height:1.1;font-variant-numeric:tabular-nums}
+.kpi-label{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.55px;color:var(--text-muted);margin-top:6px}
+.kpi-sub{font-size:11px;color:var(--text-muted);margin-top:5px;font-weight:600}
+.kpi-sub .up{color:var(--green-dark)} .kpi-sub .down{color:var(--red)}
+
+/* GRID */
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(430px,1fr));gap:16px}
+.grid2 > .card{margin-bottom:0}
+
+/* BARS */
+.barlist{display:flex;flex-direction:column;gap:9px}
+.barrow{display:grid;grid-template-columns:minmax(120px,1.3fr) 1fr auto;gap:11px;align-items:center}
+.barrow .lbl{font-size:11.5px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.barrow .lbl small{display:block;font-weight:600;color:var(--text-muted);font-size:10px;margin-top:1px}
+.bartrack{height:19px;background:var(--surface2);border-radius:5px;overflow:hidden;display:flex;border:1px solid var(--border)}
+.barseg{height:100%;transition:width .3s;position:relative}
+.barseg.booked{background:var(--green)} .barseg.notbooked{background:var(--red)} .barseg.unknown{background:var(--slate)}
+.barval{font-size:11.5px;font-weight:800;color:var(--text);font-variant-numeric:tabular-nums;white-space:nowrap;min-width:92px;text-align:right}
+.barval small{font-weight:600;color:var(--text-muted)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:12px;padding-top:11px;border-top:1px solid var(--border)}
+.legend span{font-size:10.5px;font-weight:700;color:var(--text-muted);display:flex;align-items:center;gap:6px}
+.legend i{width:11px;height:11px;border-radius:3px;display:block}
+
+/* REASON BARS */
+.rbar{display:grid;grid-template-columns:minmax(150px,190px) 1fr auto;gap:11px;align-items:center;padding:5px 0;cursor:pointer;
+  border-radius:7px}
+.rbar:hover{background:var(--surface2)}
+.rbar .rlbl{font-size:11.5px;font-weight:700;display:flex;align-items:center;gap:8px}
+.rbar .rtrack{height:16px;background:var(--surface2);border-radius:5px;overflow:hidden;border:1px solid var(--border)}
+.rbar .rfill{height:100%;border-radius:0}
+.rbar .rval{font-size:11.5px;font-weight:800;font-variant-numeric:tabular-nums;min-width:78px;text-align:right}
+.rbar .rval small{font-weight:600;color:var(--text-muted)}
+
+/* ANOMALY */
+.anom{border-left:4px solid var(--slate);background:var(--surface2);border-radius:9px;padding:11px 13px;margin-bottom:9px}
+.anom.high{border-left-color:var(--red);background:#fff5f5}
+.anom.med{border-left-color:var(--accent);background:#fff9f0}
+.anom.info{border-left-color:var(--primary-mid);background:#f2f8fd}
+.anom.good{border-left-color:var(--green);background:#f2fdf5}
+.anom-head{display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap}
+.sev{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;padding:3px 8px;border-radius:5px;color:#fff;flex:none}
+.sev.high{background:var(--red)} .sev.med{background:var(--accent)} .sev.info{background:var(--primary-mid)}
+.sev.good{background:var(--green-dark)}
+.anom-where{font-size:11.5px;font-weight:800;color:var(--text)}
+.anom-metric{font-size:10.5px;font-weight:700;color:var(--text-muted);font-variant-numeric:tabular-nums;margin-left:auto}
+.anom-body{font-size:12px;line-height:1.6;color:var(--text)}
+.anom-body b{color:var(--primary-dark)}
+
+/* INSIGHTS */
+.ins{display:flex;gap:11px;padding:11px 0;border-bottom:1px solid var(--border);align-items:flex-start}
+.ins:last-child{border-bottom:none}
+.ins-ic{width:27px;height:27px;border-radius:8px;flex:none;display:flex;align-items:center;justify-content:center;
+  font-size:13px;font-weight:800;color:#fff;background:var(--primary-mid)}
+.ins-ic.g{background:var(--green)} .ins-ic.r{background:var(--red)} .ins-ic.o{background:var(--accent)}
+.ins-ic.p{background:var(--purple)} .ins-ic.s{background:var(--slate)}
+.ins-txt{font-size:12.5px;line-height:1.65;color:var(--text)}
+.ins-txt b{color:var(--primary-dark);font-weight:800}
+.ins-txt .m{font-variant-numeric:tabular-nums;font-weight:800}
+
+/* TABLE */
+.tbl-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:10px;max-height:620px;overflow-y:auto}
+table{width:100%;border-collapse:collapse;font-size:11.5px}
+thead th{position:sticky;top:0;z-index:5;background:var(--primary);color:#fff;font-weight:700;text-align:left;
+  padding:9px 10px;white-space:nowrap;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;cursor:pointer;user-select:none}
+thead th:hover{background:var(--primary-mid)}
+tbody td{padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top;line-height:1.45}
+tbody tr:nth-child(even){background:var(--surface2)}
+tbody tr:hover{background:var(--primary-light)}
+td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+td.notes{max-width:420px;font-size:11px;color:var(--text-muted)}
+.badge{font-size:9.5px;font-weight:800;padding:3px 7px;border-radius:5px;white-space:nowrap;display:inline-block}
+.badge.b{background:#dcfce7;color:var(--green-dark)}
+.badge.nb{background:#fee2e2;color:#b91c1c}
+.badge.uk{background:#e2e8f0;color:var(--slate)}
+.badge.t{background:var(--primary-light);color:var(--primary)}
+
+/* SUMMARY TABLE */
+.mtx{width:100%;border-collapse:collapse;font-size:11.5px}
+.mtx th{background:var(--surface2);color:var(--text-muted);font-size:10px;font-weight:800;text-transform:uppercase;
+  letter-spacing:.5px;padding:8px 9px;text-align:right;border-bottom:2px solid var(--border);white-space:nowrap}
+.mtx th:first-child{text-align:left}
+.mtx td{padding:8px 9px;border-bottom:1px solid var(--border);text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+.mtx td:first-child{text-align:left;font-weight:700}
+.mtx tr.tot td{border-top:2px solid var(--border);border-bottom:none;font-weight:800;background:var(--surface2)}
+.rate-pill{font-weight:800;padding:2px 8px;border-radius:20px;font-size:11px}
+
+.empty{text-align:center;padding:44px 20px;color:var(--text-muted)}
+.empty h3{font-size:15px;font-weight:800;color:var(--primary);margin-bottom:8px}
+.empty p{font-size:12.5px;line-height:1.7;max-width:620px;margin:0 auto}
+.empty code{background:var(--surface2);padding:1px 6px;border-radius:5px;font-size:11.5px;border:1px solid var(--border)}
+.hidden{display:none !important}
+.search-in{padding:8px 11px;border:1px solid var(--border);border-radius:8px;font-family:inherit;font-size:12px;min-width:230px;
+  background:var(--surface);color:var(--text)}
+.search-in:focus{outline:none;border-color:var(--primary-mid);box-shadow:0 0 0 3px rgba(26,109,158,.14)}
+.note{font-size:11px;color:var(--text-muted);line-height:1.6;margin-top:10px}
+.note code{background:var(--surface2);padding:1px 5px;border-radius:4px;border:1px solid var(--border)}
+svg text{font-family:'Montserrat',sans-serif}
+.tip{font-size:11px;color:var(--text-muted);margin-bottom:10px;line-height:1.6}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <img class="header-logo" src="https://cdn-kjigl.nitrocdn.com/pnwIXRFdybUPisPfAzpIrnxojGSNUDCf/assets/images/optimized/rev-774bc17/realtimemarketing.com/wp-content/uploads/2026/02/RTM-New-Logo-Light.png" alt="Real Time Marketing" onerror="this.style.display='none'"/>
+  <div class="header-divider"></div>
+  <div class="header-text">
+    <h1>LSA Multi-Location Performance Dashboard</h1>
+    <p>Up to 5 locations &middot; multi-month comparison &middot; booked vs. not booked &middot; anomaly detection</p>
+  </div>
+  <div class="header-right">
+    <div class="chip-count" id="loadBadge"><span class="dot"></span><span id="loadText">No reports loaded</span></div>
+  </div>
+</div>
+
+<div class="wrap">
+
+<!-- ================= SETUP VIEW ================= -->
+<div id="setupView">
+
+  <!-- ============ SOURCES ============ -->
+  <div class="card">
+    <h2>
+      <span>Locations</span>
+      <span class="sub">Paste up to five Google Sheets links &mdash; shared &ldquo;Anyone with the link&rdquo; &mdash; then load them all in one go</span>
+      <span class="spacer"></span>
+      <button class="btn btn-sm" id="btnDemo">Load sample data</button>
+      <button class="btn btn-sm" id="btnClear">Clear all</button>
+    </h2>
+
+    <div id="originWarn" class="hidden"></div>
+
+    <div id="linkRows"></div>
+
+    <div class="note">
+      Each link must point at that location's <b>LSA Report</b> spreadsheet &mdash; the one with a tab per month
+      (<code>DATE / LEAD TYPE / BOOKED / NOT BOOKED / NOTES&hellip;</code>). Paste the normal <code>/edit</code> URL.
+      Every tab in the sheet is listed in one request, and any tab named like a month
+      (<code>August 2026</code>, <code>AUG 2026</code>, <code>Sept, 2025</code>&hellip;) becomes a selectable month
+      &mdash; whatever the history goes back to. Only the months you actually select get downloaded, so add
+      more months any time and they load on the spot.
+    </div>
+  </div>
+
+  <!-- ============ PERIOD TO LOAD ============ -->
+  <div class="card">
+    <h2><span>Months to load</span>
+      <span class="sub">Only these months get downloaded &mdash; you can add more once you're in</span></h2>
+
+    <div class="chiprow" id="rangePresets">
+      <div class="chip" data-r="3">Last 3 months</div>
+      <div class="chip" data-r="6">Last 6 months</div>
+      <div class="chip" data-r="12">Last 12 months</div>
+      <div class="chip" data-r="ytd">This year so far</div>
+    </div>
+
+    <div class="rangebar">
+      <div class="field">
+        <label for="fromMonth">From</label>
+        <select id="fromMonth"></select>
+      </div>
+      <div class="field">
+        <label for="toMonth">To</label>
+        <select id="toMonth"></select>
+      </div>
+      <div class="range-summary" id="rangeSummary"></div>
+      <div class="spacer"></div>
+      <button class="btn btn-accent" id="btnLoadAll">Load all reports</button>
+    </div>
+
+    <div class="progress-wrap" id="prog">
+      <div class="progress-bar"><div class="progress-fill" id="progFill"></div></div>
+      <div class="progress-meta"><b id="progMsg">&nbsp;</b><span id="progPct"></span></div>
+    </div>
+
+    <div id="loadStatus"></div>
+
+    <div class="note">
+      A wider range means more tabs to download, so start narrow. Every month the sheets actually have
+      stays selectable inside the dashboard &mdash; picking one there downloads it on the spot.
+    </div>
+  </div>
+
+  <!-- ============ EMPTY STATE ============ -->
+  <div class="card" id="emptyCard">
+    <div class="empty">
+      <h3>Paste up to five LSA Report links, choose a period, then hit Load all reports</h3>
+      <p>
+        Each sheet's tab list is read in one request to find its month tabs. Once loaded you get
+        booked vs. not-booked volume, lead-type mix, the ranked reasons leads didn't book,
+        statistically flagged anomalies, and an auto-written performance read for the period.
+      </p>
+    </div>
+  </div>
+
+</div><!-- /setupView -->
+
+<!-- ================= DASHBOARD VIEW ================= -->
+<div id="dashView" class="hidden">
+ <div class="layout">
+
+  <!-- ---------- LEFT SIDEBAR ---------- -->
+  <aside class="sidebar">
+    <button class="btn btn-sm back-btn" id="btnBack">&larr; Links &amp; period</button>
+
+    <div class="side-card">
+      <h3>Locations <span class="side-act" id="locAllBtn">all</span></h3>
+      <div id="locPanels"></div>
+    </div>
+
+    <div class="side-card">
+      <h3>Lead type <span class="side-act" id="typeAllBtn">all</span></h3>
+      <div class="chiprow" id="typeChips"></div>
+    </div>
+
+    <div class="side-card">
+      <h3>Export</h3>
+      <button class="btn btn-sm side-full" id="btnExportSummary">Summary CSV</button>
+      <button class="btn btn-sm side-full" id="btnExportLeads">Lead detail CSV</button>
+    </div>
+  </aside>
+
+  <!-- ---------- MAIN ---------- -->
+  <div class="main">
+
+  <div class="card" id="periodCard">
+    <h2><span>Months</span><span class="sub">every panel follows this selection &mdash; dimmed months aren't downloaded yet</span>
+      <span class="spacer"></span>
+      <div class="mini-actions">
+        <button data-m="all">All</button><button data-m="none">None</button>
+        <button data-m="3">Last 3</button><button data-m="6">Last 6</button><button data-m="12">Last 12</button>
+      </div>
+    </h2>
+    <div class="chiprow" id="monthChips"></div>
+  </div>
+
+  <!-- ============ RESULTS ============ -->
+  <div id="results">
+
+    <div class="kpis" id="kpis"></div>
+
+    <!-- Anomalies -->
+    <div class="card">
+      <h2><span>Anomaly detection</span>
+        <span class="sub" id="anomSub"></span>
+        <span class="spacer"></span>
+        <button class="btn btn-sm" id="btnAnomAll">Show all</button>
+      </h2>
+      <div class="tip" id="anomTip"></div>
+      <div id="anomList"></div>
+    </div>
+
+    <!-- Insights -->
+    <div class="card">
+      <h2><span>Performance insight</span><span class="sub" id="insSub"></span></h2>
+      <div id="insList"></div>
+    </div>
+
+    <div class="grid2" style="margin-bottom:16px">
+      <!-- Booked vs not booked by location -->
+      <div class="card">
+        <h2><span>Booked vs. not booked</span><span class="sub">by location, selected months</span></h2>
+        <div class="barlist" id="bookedByLoc"></div>
+        <div class="legend">
+          <span><i style="background:var(--green)"></i>Booked</span>
+          <span><i style="background:var(--red)"></i>Not booked</span>
+          <span><i style="background:var(--slate)"></i>Unmarked</span>
+        </div>
+      </div>
+      <!-- Leads by type -->
+      <div class="card">
+        <h2><span>Leads by lead type</span><span class="sub">volume and booking rate per type</span></h2>
+        <div class="barlist" id="byType"></div>
+        <div class="legend">
+          <span><i style="background:var(--green)"></i>Booked</span>
+          <span><i style="background:var(--red)"></i>Not booked</span>
+          <span><i style="background:var(--slate)"></i>Unmarked</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Monthly trend -->
+    <div class="card">
+      <h2><span>Monthly trend</span><span class="sub">stacked lead volume with the booking-rate line overlaid</span></h2>
+      <div id="trendChart"></div>
+    </div>
+
+    <!-- Reasons -->
+    <div class="grid2" style="margin-bottom:16px">
+      <div class="card">
+        <h2><span>Why leads didn't book</span><span class="sub" id="reasonSub"></span></h2>
+        <div id="reasonBars"></div>
+        <div class="note">Reasons are derived from each lead's outcome columns and dispatch notes.
+          Click any reason to filter the lead table at the bottom.</div>
+      </div>
+      <div class="card">
+        <h2><span>Reason mix by location</span><span class="sub">share of that location's not-booked leads</span></h2>
+        <div class="tbl-wrap" style="max-height:none"><table class="mtx" id="reasonMatrix"></table></div>
+      </div>
+    </div>
+
+    <!-- Month x location matrix -->
+    <div class="card">
+      <h2><span>Month &times; location breakdown</span><span class="sub">leads, booked, booking rate</span></h2>
+      <div class="tbl-wrap" style="max-height:none"><table class="mtx" id="matrix"></table></div>
+    </div>
+
+    <!-- Detail table -->
+    <div class="card">
+      <h2><span>Lead detail</span><span class="sub" id="detailSub"></span>
+        <span class="spacer"></span>
+        <input class="search-in" id="tblSearch" placeholder="Search name, phone, job type, notes&hellip;" />
+        <select class="search-in" id="tblStatus" style="min-width:150px">
+          <option value="">All statuses</option>
+          <option value="booked">Booked only</option>
+          <option value="notbooked">Not booked only</option>
+          <option value="unknown">Unmarked only</option>
+        </select>
+      </h2>
+      <div class="tbl-wrap"><table id="detailTable"></table></div>
+      <div class="note" id="detailNote"></div>
+    </div>
+
+  </div><!-- /results -->
+
+  </div><!-- /main -->
+ </div><!-- /layout -->
+</div><!-- /dashView -->
+</div><!-- /wrap -->
+<script>
+"use strict";
+const $  = id => document.getElementById(id);
+const el = (t,c,h) => { const n=document.createElement(t); if(c) n.className=c; if(h!=null) n.innerHTML=h; return n; };
+const esc = s => String(s==null?"":s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));
+const pct = (n,d) => d ? Math.round(n/d*1000)/10 : 0;
+const fmtPct = (n,d) => d ? (Math.round(n/d*1000)/10).toFixed(1)+"%" : "—";
+const nf = n => (n||0).toLocaleString();
+
+/* ============================================================
+   STATE
+   ============================================================ */
+const MAX_LOCS = 5;
+const state = {
+  // one row per input line, persisted to localStorage so links survive a reload
+  rows: Array.from({length:MAX_LOCS}, () => ({ name:"", url:"" })),
+  // {id,rowIdx,sheetId,gid,name,autoName,months:[],tabNames:{},fetched:Set,leads:[],error}
+  locs: [],
+  range:       { from:null, to:null },   // months chosen BEFORE loading
+  selMonths:   new Set(),
+  selLocs:     new Set(),
+  selTypes:    new Set(),
+  hiddenTypes: new Set(),
+  reasonFilter: null,
+  anomExpanded: false,
+  showAllMonths: false,
+  sort: { key:"date", dir:-1 }
+};
+let nextLocId = 1;
+
+/* ============================================================
+   REASON TAXONOMY
+   Aligned with the "CALLS PERCENTAGE" buckets in the LSA Audit
+   Report sheet (Booked / Not Booked / Invalid / Booked Out /
+   Not Answered / Missed / Under 30 Seconds) and extended with the
+   content-driven reasons that show up in the dispatch NOTES column.
+   ============================================================ */
+const REASONS = [
+  "Missed / Not Answered", "Under 30 Seconds", "Booked Out / No Availability",
+  "Price / Quote Shopping", "Declined / No Commitment", "Out of Scope / Service Not Offered",
+  "Outside Service Area", "Cancelled After Booking", "Customer Will Call Back",
+  "Not the Decision Maker", "Home Warranty / Insurance", "Existing Customer / Follow-up",
+  "Message — No Reply", "Wrong Number", "Spam / Solicitation", "Invalid / Not a Real Lead",
+  "Other / Uncategorized"
+];
+const REASON_COLORS = {
+  "Missed / Not Answered":"#ef4444", "Under 30 Seconds":"#f97316",
+  "Booked Out / No Availability":"#ca8a04", "Price / Quote Shopping":"#8b5cf6",
+  "Declined / No Commitment":"#be185d", "Out of Scope / Service Not Offered":"#0ea5e9",
+  "Outside Service Area":"#14b8a6", "Cancelled After Booking":"#db2777",
+  "Customer Will Call Back":"#f59e0b", "Not the Decision Maker":"#a855f7",
+  "Home Warranty / Insurance":"#6366f1", "Existing Customer / Follow-up":"#0891b2",
+  "Message — No Reply":"#64748b", "Wrong Number":"#c026d3", "Spam / Solicitation":"#dc2626",
+  "Invalid / Not a Real Lead":"#78716c", "Other / Uncategorized":"#94a3b8"
+};
+/* Reasons that are a dispatch/answering failure rather than a customer decision —
+   these are the ones the client can actually win back. */
+const RECOVERABLE = new Set(["Missed / Not Answered","Under 30 Seconds","Booked Out / No Availability","Customer Will Call Back"]);
+/* Reasons where the lead was never a real job — candidates for a Google credit dispute. */
+const DISPUTABLE  = new Set(["Out of Scope / Service Not Offered","Outside Service Area","Wrong Number",
+                             "Spam / Solicitation","Not the Decision Maker","Invalid / Not a Real Lead"]);
+
+/* The dispatch team writes its own tags into CALLERS NAME ("under 30 seconds",
+   "Invalid - job not served", "Not Charged Lead") and into BOOKED DAY ("Canceled",
+   "Not Available"). Those two columns are treated as authoritative; the free-text
+   NOTES column only decides the cases they don't already settle. */
+function classifyReason(L){
+  const n   = (L.notes||"").toLowerCase();
+  const who = (L.caller||"").toLowerCase();
+  const bd  = (L.bookedDay||"").toLowerCase();
+  const isPhone = L.leadType === "Phone";
+
+  // ── explicit tags the team already wrote ──────────────────────────────────
+  if(/under\s*30\s*sec/.test(who) || /under\s*30\s*sec/.test(n)) return "Under 30 Seconds";
+  if(/cancel/.test(bd) || /cancell?ed/.test(who)) return "Cancelled After Booking";
+  if(/missed|no answer|not answered|unanswered/.test(who)) return "Missed / Not Answered";
+
+  // ── structural buckets, mirroring the audit sheet's own categories ────────
+  if(isPhone && L.durationSec === 0) return "Missed / Not Answered";
+  if(isPhone && L.durationSec > 0 && L.durationSec < 30) return "Under 30 Seconds";
+  if(isPhone && L.durationSec < 90 &&
+     /\b(no answer|did ?n[o']?t answer|went to voicemail|voicemail|lvm|missed call|no one answered|nobody answered|rang for \d+ second|call ended right away)\b/.test(n))
+    return "Missed / Not Answered";
+
+  // ── non-leads ─────────────────────────────────────────────────────────────
+  if(/\b(wrong number|wrong company|misdial|dial(l)?ed the wrong)\b/.test(n)) return "Wrong Number";
+  if(/\b(solicitation|solicitor|telemarket|robocall|spam|sales call|cold call|is selling|offering (seo|marketing|services)|marketing (call|agency)|looking for plumbing companies for)\b/.test(n))
+    return "Spam / Solicitation";
+  if(/\b(out of (their |the |our )?(scope|service scope)|scope of work|not (something )?(they|we) (do|offer|provide)|do(es)?n[o']?t (do|offer|provide|service|handle)|dispatch said no|they do not do|we do not do|not (a )?service (they|we) (offer|provide))\b/.test(n))
+    return "Out of Scope / Service Not Offered";
+  if(/\b(out(side)? of (the |their |our )?(service )?area|not in (the |their |our )?service area|too far|do(es)?n[o']?t service that area|outside (the )?radius|out of range|not served)\b/.test(n)
+     || (/invalid/.test(who) && /\bnot served\b/.test(who)))
+    return "Outside Service Area";
+
+  // ── availability: BOOKED DAY is authoritative, notes are the fallback ─────
+  if(/not available|no availability|booked out/.test(bd)) return "Booked Out / No Availability";
+  if(/\b(no availability|not available (today|until)|soonest (availability|opening|is)|earliest (availability|is|we|they)|fully booked|booked (out|up)|next available|no same[- ]day|could ?n[o']?t come out (today|until)|wanted it (done )?today|cancellation list|wait ?list)\b/.test(n))
+    return "Booked Out / No Availability";
+
+  if(/\b(home warranty|warranty company|insurance (company|claim|will|adjuster)|through (their|his|her) insurance)\b/.test(n))
+    return "Home Warranty / Insurance";
+  if(/\b(not the h\/?o|not the home ?owner|renter|tenant|landlord|property manager|needs to (ask|check|speak) (with|to) (her|his|their) (husband|wife|spouse|partner|boss|manager|hoa)|not the decision maker)\b/.test(n))
+    return "Not the Decision Maker";
+
+  // ── the caller only ever wanted a number ─────────────────────────────────
+  if(/\b(need(s|ed)?|want(s|ed)?|ask(s|ed)? for|looking for|just (needs?|wants?)|calling (for|about)) (a |an |the )?(quote|estimate|ballpark|price|pricing|cost)\b/.test(n)
+     || /\b(price shop|shopping around|call(ing)? around|second opinion|just (a )?(quote|price|estimate)|only (wanted|needed) (a )?(quote|price|estimate)|ballpark)\b/.test(n)
+     || /\b(too expensive|too (high|much)|can[o']?t afford|price was too)\b/.test(n))
+    return "Price / Quote Shopping";
+
+  if(L.custType === "Existing" || /\b(existing customer|already a customer|previous (job|customer|service)|follow[- ]?up (on|to) (a|the|their))\b/.test(n))
+    return "Existing Customer / Follow-up";
+  if(/\b(will call back|call (us|you|them) back|call back if|think about it|discuss with|check with (her|his|their)|get back to (us|you)|let (us|you) know|talk to (her|his|their))\b/.test(n))
+    return "Customer Will Call Back";
+
+  // A real service conversation that simply didn't close.
+  if(/\b(caller declined|declined|did not proceed|did ?n[o']?t proceed|did ?n[o']?t agree|not interested|no thank you|ended the call|hung up|will not|won[o']?t be)\b/.test(n))
+    return "Declined / No Commitment";
+
+  if(L.leadType === "Message") return "Message — No Reply";
+  if(/invalid|not charged/.test(who)) return "Invalid / Not a Real Lead";
+  return "Other / Uncategorized";
+}
+
+/* ============================================================
+   CSV  (gviz returns plain RFC-4180 CSV; NOTES cells contain
+   commas, quotes and newlines, so this has to be a real parser)
+   ============================================================ */
+function parseCSV(text){
+  const rows = []; let row = [], f = "", q = false;
+  for(let i = 0; i < text.length; i++){
+    const c = text[i];
+    if(q){
+      if(c === '"'){ if(text[i+1] === '"'){ f += '"'; i++; } else q = false; }
+      else f += c;
+    } else if(c === '"'){ q = true; }
+    else if(c === ","){ row.push(f); f = ""; }
+    else if(c === "\n"){ row.push(f); f = ""; rows.push(row); row = []; }
+    else if(c !== "\r"){ f += c; }
+  }
+  if(f.length || row.length){ row.push(f); rows.push(row); }
+  return rows;
+}
+
+/* ============================================================
+   VALUE COERCION
+   ============================================================ */
+const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const MON_ABBR = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const monthLabel = k => { const [y,m]=k.split("-"); return MON_ABBR[+m-1]+" "+y; };
+const monthLong  = k => { const [y,m]=k.split("-"); return MONTHS[+m-1]+" "+y; };
+const monthShort = k => { const [y,m]=k.split("-"); return MON_ABBR[+m-1]+" "+y; };
+const normKey = s => String(s==null?"":s).toUpperCase().replace(/[^A-Z0-9]+/g," ").trim();
+
+/** "0:04:53" -> 293. "-" / blank -> 0. */
+function toSeconds(v){
+  if(v == null || v === "" || v === "-") return 0;
+  const s = String(v).trim();
+  if(/^\d+$/.test(s)) return parseInt(s,10);
+  const p = s.split(":").map(x => parseFloat(x)||0);
+  if(p.length === 3) return p[0]*3600 + p[1]*60 + p[2];
+  if(p.length === 2) return p[0]*60 + p[1];
+  return 0;
+}
+/** "5:30 AM" / "13:40" -> "05:30" / "13:40". gviz formats times with AM/PM. */
+function toClock(v){
+  if(v == null || v === "") return "";
+  const m = /^(\d{1,2}):(\d{2})(?::\d{2})?\s*(am|pm)?/i.exec(String(v).trim());
+  if(!m) return "";
+  let h = +m[1]; const ap = (m[3]||"").toLowerCase();
+  if(ap === "pm" && h < 12) h += 12;
+  if(ap === "am" && h === 12) h = 0;
+  return String(h).padStart(2,"0") + ":" + m[2];
+}
+/** "Apr 1, 2026" / "2026-04-01" / "04/01/26" -> "2026-04-01", else null. */
+function toISODate(v){
+  if(v == null || v === "") return null;
+  const s = String(v).trim();
+  let m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
+  if(m) return m[1]+"-"+m[2]+"-"+m[3];
+  m = /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/.exec(s);
+  if(m){ let y = +m[3]; if(y < 100) y += y < 70 ? 2000 : 1900;
+         return y+"-"+String(+m[1]).padStart(2,"0")+"-"+String(+m[2]).padStart(2,"0"); }
+  const d = new Date(s);
+  return isNaN(d) ? null : d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+}
+const WD = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+const weekdayOf = iso => { const [y,m,d]=iso.split("-").map(Number); return WD[new Date(Date.UTC(y,m-1,d)).getUTCDay()]; };
+const truthy = v => { const s=String(v==null?"":v).trim().toLowerCase(); return s==="1"||s==="y"||s==="yes"||s==="true"||s==="x"||(!isNaN(+s)&&+s>0); };
+
+function normType(v){
+  const s = String(v||"").trim().toLowerCase();
+  if(!s) return "Other";
+  if(s.includes("phone")||s.includes("call")) return "Phone";
+  if(s.includes("message")||s.includes("text")||s.includes("sms")) return "Message";
+  if(s.includes("book")) return "Booking";
+  return s.charAt(0).toUpperCase()+s.slice(1);
+}
+
+/** Find the header row inside a month tab (some tabs pad rows above it). */
+function findHeader(rows, mustHave){
+  for(let i=0; i<Math.min(rows.length,15); i++){
+    const keys = (rows[i]||[]).map(normKey);
+    if(mustHave.every(k => keys.includes(k))) return i;
+  }
+  return -1;
+}
+function colMap(headerRow){
+  const map = {};
+  headerRow.forEach((h,i) => { const k = normKey(h); if(k && !(k in map)) map[k] = i; });
+  return map;
+}
+const cell = (row,map,key) => { const i = map[key]; return i==null ? "" : (row[i]==null ? "" : row[i]); };
+
+/** One month tab of an LSA Report -> lead rows. */
+function parseMonthSheet(rows, monthKey, locId){
+  const h = findHeader(rows, ["DATE","LEAD TYPE"]);
+  if(h < 0) return [];
+  const map = colMap(rows[h]);
+  const out = [];
+  for(let i = h+1; i < rows.length; i++){
+    const r = rows[i]; if(!r || !r.length) continue;
+    const iso = toISODate(cell(r,map,"DATE"));
+    if(!iso) continue;
+    if(monthKey && iso.slice(0,7) !== monthKey) continue;   // drop stray total/footer rows
+    const bookedRaw    = cell(r,map,"BOOKED");
+    const notBookedRaw = cell(r,map,"NOT BOOKED");
+    let booked = false, unmarked = false;
+    if(truthy(bookedRaw) && !truthy(notBookedRaw)) booked = true;
+    else if(truthy(notBookedRaw) && !truthy(bookedRaw)) booked = false;
+    else { booked = false; unmarked = true; }   // no appointment recorded == not booked
+    const L = {
+      loc: locId, date: iso, month: iso.slice(0,7), weekday: weekdayOf(iso),
+      time: toClock(cell(r,map,"CALL TIME MST") || cell(r,map,"CALL TIME") || cell(r,map,"TIME")),
+      leadType: normType(cell(r,map,"LEAD TYPE")),
+      unmarked,
+      vertical: String(cell(r,map,"VERTICAL")||"").trim(),
+      dispatch: String(cell(r,map,"DISPATCH NAME")||"").trim(),
+      durationSec: toSeconds(cell(r,map,"DURATION")),
+      phone: String(cell(r,map,"PHONE NUMBER")||"").trim(),
+      caller: String(cell(r,map,"CALLERS NAME")||cell(r,map,"CALLER NAME")||"").trim(),
+      booked,
+      bookedDay: String(cell(r,map,"BOOKED DAY")||"").trim(),
+      address: String(cell(r,map,"ADDRESS")||"").trim(),
+      jobType: String(cell(r,map,"JOB TYPE")||"").trim(),
+      custType: truthy(cell(r,map,"EXISTING")) ? "Existing" : (truthy(cell(r,map,"NEW")) ? "New" : ""),
+      searchIntent: String(cell(r,map,"SEARCH INTENT")||"").trim(),
+      googleST: String(cell(r,map,"GOOGLE ST")||"").trim(),
+      leadId: String(cell(r,map,"LEAD ID")||"").trim(),
+      answerSec: (()=>{ const v=cell(r,map,"CALL ANSWERED SECONDS"); return v===""?null:(parseInt(v,10)||0); })(),
+      notes: String(cell(r,map,"NOTES")||"").trim()
+    };
+    if(!L.leadType && !L.phone && !L.caller && !L.notes) continue;   // padding row
+    L.reason = booked === false ? classifyReason(L) : null;
+    out.push(L);
+  }
+  return out;
+}
+
+/* ============================================================
+   GOOGLE SHEETS ACCESS
+   The /export endpoint needs Google auth and sends no CORS headers,
+   so it 401s from a browser even on shared sheets. The visualization
+   endpoint (/gviz/tq) does send CORS headers and can address a single
+   tab by name — that is what everything below uses.
+   ============================================================ */
+function sheetIdFromUrl(url){
+  const m = /\/spreadsheets\/d\/([A-Za-z0-9_-]{20,})/.exec(String(url||""));
+  return m ? m[1] : null;
+}
+function gvizUrl(id, params){
+  const u = new URL("https://docs.google.com/spreadsheets/d/" + id + "/gviz/tq");
+  u.searchParams.set("tqx", "out:csv");
+  for(const k in params) if(params[k] != null && params[k] !== "") u.searchParams.set(k, params[k]);
+  return u.toString();
+}
+/* A page opened straight off disk (file://) or from a data: URL has an opaque
+   origin, and Google returns no Access-Control-Allow-Origin for "null" — so every
+   request fails with a bare TypeError. That is by far the most common cause of a
+   blanket "network error", and it is worth naming instead of guessing. */
+const OPAQUE_ORIGIN = location.origin === "null" || location.protocol === "file:" || location.protocol === "data:";
+function transportError(e){
+  if(e && e.name === "AbortError") return "Google did not respond in time";
+  if(OPAQUE_ORIGIN)
+    return "This page is open as a local file — Google blocks that. Serve it over http:// (see the note above)";
+  return "Couldn't reach docs.google.com — offline, or a browser extension / network policy is blocking it";
+}
+
+// Probes are one-row reads, so a slow one means a dead link — fail those fast.
+// A full month tab can be a few hundred KB, so give downloads real room.
+const PROBE_MS = 8000, DOWNLOAD_MS = 30000;
+async function gvizRows(id, params, timeoutMs){
+  const ms = timeoutMs || PROBE_MS;
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), ms);
+  let res, t;
+  try {
+    try { res = await fetch(gvizUrl(id, params), { credentials:"omit", signal:ctl.signal }); }
+    catch(e){ throw new Error(transportError(e)); }
+    if(res.status === 401 || res.status === 403){
+      // "Anyone in <your org> with the link" needs the viewer's Google cookies,
+      // which credentials:"omit" deliberately strips. Retry with them before giving up.
+      try {
+        const r2 = await fetch(gvizUrl(id, params), { credentials:"include" });
+        if(r2.ok){ const t2 = await r2.text();
+          if(!/^\s*<(!doctype|html)/i.test(t2)) return parseCSV(t2); }
+      } catch(e){ /* fall through to the clearer message below */ }
+      throw new Error("Google refused the read — set sharing to “Anyone with the link — Viewer”");
+    }
+    if(res.status === 404) throw new Error("No sheet at that link (404) — check the URL");
+    if(!res.ok) throw new Error("HTTP " + res.status);
+    t = await res.text();
+  } finally { clearTimeout(timer); }
+  if(/^\s*<(!doctype|html)/i.test(t))
+    throw new Error("Google returned a sign-in page — the sheet is not link-shared");
+  return parseCSV(t);
+}
+const isMonthTab = rows => findHeader(rows, ["DATE","LEAD TYPE"]) >= 0;
+
+/** Run `fn` over `items` with a bounded number in flight, reporting progress. */
+async function pool(items, width, fn, onStep){
+  let next = 0, done = 0;
+  await Promise.all(Array.from({length: Math.min(width, items.length)}, async () => {
+    while(true){
+      const i = next++;
+      if(i >= items.length) return;
+      try { await fn(items[i], i); } catch(e){ items[i].err = e.message || String(e); }
+      done++; if(onStep) onStep(done, items.length);
+    }
+  }));
+}
+
+/* ---- tab discovery -------------------------------------------------------
+   /htmlview is CORS-readable on a link-shared sheet and its bootstrap script
+   carries the complete tab list — name + gid for every tab. One request beats
+   probing month names one at a time, and it picks up whatever the tabs are
+   actually called instead of whatever we guessed.
+   -------------------------------------------------------------------------- */
+function unescapeJs(t){
+  return String(t)
+    .replace(/\\x([0-9a-f]{2})/gi, (_,h) => String.fromCharCode(parseInt(h,16)))
+    .replace(/\\u([0-9a-f]{4})/gi, (_,h) => String.fromCharCode(parseInt(h,16)))
+    .replace(/\\(["'\/\\])/g, "$1");
+}
+const MON_RE = "(January|February|March|April|May|June|July|August|September|October|November|December"
+             + "|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sept|Sep|Oct|Nov|Dec)";
+/** "August 2026" / "AUG-2026" / "Sept, 2025" -> "2026-08", else null. */
+function tabMonthKey(name){
+  const m = new RegExp("^\\s*" + MON_RE + "[\\s,._\\-\\/]+((?:19|20)\\d\\d)\\s*$", "i").exec(String(name||""));
+  if(!m) return null;
+  const t = m[1].toLowerCase();
+  let i = MONTHS.findIndex(x => x.toLowerCase() === t);
+  if(i < 0) i = MON_ABBR.findIndex(x => x.toLowerCase() === t.slice(0,3));
+  return i < 0 ? null : m[2] + "-" + String(i+1).padStart(2,"0");
+}
+
+async function fetchTabList(id){
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), PROBE_MS);
+  let res, html;
+  try {
+    try { res = await fetch("https://docs.google.com/spreadsheets/d/" + id + "/htmlview",
+                            { credentials:"omit", signal:ctl.signal }); }
+    catch(e){ throw new Error(transportError(e)); }
+    if(!res.ok){
+      const fatal = res.status === 404 ? "No sheet at that link (404) — check the URL"
+                  : (res.status === 401 || res.status === 403)
+                      ? "Google refused the read — set sharing to “Anyone with the link — Viewer”"
+                      : null;
+      const err = new Error(fatal || ("HTTP " + res.status));
+      err.fatal = !!fatal;
+      throw err;
+    }
+    html = await res.text();
+  } finally { clearTimeout(timer); }
+  const out = [], re = /items\.push\(\{name:\s*"((?:[^"\\]|\\.)*)"[^}]*?gid:\s*"(-?\d+)"/g;
+  let m;
+  while((m = re.exec(html))) out.push({ name: unescapeJs(m[1]), gid: m[2] });
+  if(!out.length) throw new Error("tab list not readable");
+  return out;
+}
+
+/** Preferred path: read every tab name straight off the sheet. */
+async function discoverTabs(loc){
+  const tabs = await fetchTabList(loc.sheetId);
+  const gids = {};
+  tabs.forEach(t => {
+    const k = tabMonthKey(t.name);
+    if(k && !(k in gids)) gids[k] = t.gid;      // first tab wins on a duplicate month
+  });
+  loc.tabTotal = tabs.length;
+  loc.months = Object.keys(gids).sort();
+  loc.tabGids = gids;
+  if(!loc.months.length)
+    throw new Error("No month tabs in this sheet (found " + tabs.length + " tabs, none named like “August 2026”)");
+  return loc.months;
+}
+
+const monthKeysBack = n => {
+  const now = new Date(), out = [];
+  for(let i = -1; i < n; i++){                   // -1 picks up a tab for next month
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    out.push(d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0"));
+  }
+  return out;
+};
+
+/** Fallback when the tab list can't be read: probe month names one at a time. */
+async function discoverMonthsByProbe(loc, cap, onStep){
+  const jobs = monthKeysBack(cap).map(k => ({ k }));
+  const hits = {};
+  await pool(jobs, 6, async j => {
+    for(const naming of [monthLong, monthShort]){
+      const name = naming(j.k);
+      const rows = await gvizRows(loc.sheetId, { sheet:name, tq:"select * limit 1" });
+      if(isMonthTab(rows)){ hits[j.k] = name; return; }
+    }
+  }, onStep);
+  if(jobs.every(j => j.err)) throw new Error(jobs[0].err);
+  loc.months = Object.keys(hits).sort();
+  loc.tabNames = hits;
+  return loc.months;
+}
+
+/** Cheap read of the sheet's banner row for a default label. Never fatal. */
+async function sheetLabel(loc){
+  try {
+    const rows = await gvizRows(loc.sheetId, { gid: loc.gid, tq:"select * limit 1" });
+    const a1 = String((rows[0]||[])[0] || "").split("\n")[0].trim();
+    const cut = a1.split(/\s+(?:LSA|GBP)\b/)[0].replace(/[\s\-–|_]+$/,"").trim();
+    if(cut.length >= 4 && cut.length <= 60) return cut;
+  } catch(e){ /* cosmetic only */ }
+  return null;
+}
+
+/** Work out this sheet's month tabs, however we can get at them. */
+async function prepareLoc(loc, onStep){
+  try {
+    await discoverTabs(loc);
+  } catch(e){
+    if(e.fatal) throw e;              // Google gave a definitive answer; don't probe
+    // Tab list unavailable — fall back to probing names. If that fails too, report
+    // whichever message is specific: a sharing/404 answer from gviz beats a generic
+    // transport failure, and a transport failure beats "tab list not readable".
+    try { await discoverMonthsByProbe(loc, 36, onStep); }
+    catch(e2){
+      const generic = m => /^(tab list not readable|HTTP \d+)$/.test(m||"");
+      throw new Error(!generic(e2.message) ? e2.message : e.message);
+    }
+  }
+  loc.autoName = await sheetLabel(loc);
+}
+
+/** Pull one month tab in full — by gid when we have it, by name otherwise. */
+async function fetchMonth(loc, key){
+  const params = (loc.tabGids && loc.tabGids[key]) ? { gid: loc.tabGids[key] }
+                                                   : { sheet: (loc.tabNames||{})[key] };
+  const rows = await gvizRows(loc.sheetId, params, DOWNLOAD_MS);
+  return parseMonthSheet(rows, key, loc.id);
+}
+
+/* ============================================================
+   PROGRESS
+   ============================================================ */
+function progShow(msg){ $("prog").classList.add("show"); $("progMsg").textContent = msg; $("progFill").style.width = "0%"; $("progPct").textContent = ""; }
+function progStep(done, total, msg){
+  const p = total ? Math.round(done/total*100) : 0;
+  $("progFill").style.width = p + "%";
+  $("progPct").textContent = done + " / " + total;
+  if(msg) $("progMsg").textContent = msg;
+}
+function progHide(){ $("prog").classList.remove("show"); }
+
+/* ============================================================
+   VIEWS
+   ============================================================ */
+function showSetup(){
+  $("setupView").classList.remove("hidden");
+  $("dashView").classList.add("hidden");
+  window.scrollTo(0,0);
+}
+function showDash(){
+  $("setupView").classList.add("hidden");
+  $("dashView").classList.remove("hidden");
+  window.scrollTo(0,0);
+}
+
+/* ============================================================
+   PRE-LOAD PERIOD PICKER
+   The tab list isn't known until a sheet is read, so the picker
+   offers a plain calendar range and the load intersects it with
+   whatever months each sheet turns out to have.
+   ============================================================ */
+const nowKey = () => { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0"); };
+function shiftMonth(key, delta){
+  const [y,m] = key.split("-").map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0");
+}
+function monthsBetween(from, to){
+  const out = [];
+  let k = from <= to ? from : to;
+  const end = from <= to ? to : from;
+  while(k <= end){ out.push(k); k = shiftMonth(k, 1); }
+  return out;
+}
+const RANGE_SPAN = 84;                       // seven years of options is plenty
+function buildRangePicker(){
+  const latest = shiftMonth(nowKey(), 1);    // sheets often carry next month's tab
+  const opts = [];
+  for(let i = 0; i < RANGE_SPAN; i++) opts.push(shiftMonth(latest, -i));
+  const html = opts.map(k => '<option value="' + k + '">' + monthLong(k) + '</option>').join("");
+  $("fromMonth").innerHTML = html;
+  $("toMonth").innerHTML = html;
+  setRange(shiftMonth(nowKey(), -2), nowKey());
+}
+function setRange(from, to){
+  if(from > to){ const t = from; from = to; to = t; }
+  state.range = { from, to };
+  $("fromMonth").value = from;
+  $("toMonth").value = to;
+  const n = monthsBetween(from, to).length;
+  $("rangeSummary").innerHTML = "<b>" + n + "</b> month" + (n===1?"":"s")
+    + ' <span>&middot; ' + monthLabel(from) + " &rarr; " + monthLabel(to) + "</span>";
+  // light up a preset only when the range matches it exactly
+  const now = nowKey();
+  document.querySelectorAll("#rangePresets .chip").forEach(c => {
+    const r = c.dataset.r;
+    const match = r === "ytd" ? (from === now.slice(0,4) + "-01" && to === now)
+                              : (to === now && from === shiftMonth(now, -(parseInt(r,10)-1)));
+    c.classList.toggle("on", match);
+  });
+}
+function wireRangePicker(){
+  buildRangePicker();
+  $("fromMonth").onchange = () => setRange($("fromMonth").value, $("toMonth").value);
+  $("toMonth").onchange   = () => setRange($("fromMonth").value, $("toMonth").value);
+  document.querySelectorAll("#rangePresets .chip").forEach(c => {
+    c.onclick = () => {
+      const now = nowKey(), r = c.dataset.r;
+      setRange(r === "ytd" ? now.slice(0,4) + "-01" : shiftMonth(now, -(parseInt(r,10)-1)), now);
+    };
+  });
+}
+
+/* ============================================================
+   LINK ROWS
+   ============================================================ */
+const LS_LINKS = "lsa_multi_links_v1";
+function saveLinks(){
+  try { localStorage.setItem(LS_LINKS, JSON.stringify(state.rows)); } catch(e){}
+}
+function loadLinks(){
+  try { const v = JSON.parse(localStorage.getItem(LS_LINKS)); if(Array.isArray(v)) return v; } catch(e){}
+  return null;
+}
+
+function renderRows(){
+  const box = $("linkRows"); box.innerHTML = "";
+  state.rows.forEach((r,i) => {
+    const loc = state.locs.find(l => l.rowIdx === i);
+    const cls = loc ? (loc.error ? "err" : "ok") : (r.url && !sheetIdFromUrl(r.url) ? "err" : "");
+    const row = el("div","linkrow" + (cls ? " " + cls : ""));
+    row.appendChild(el("div","slot-num", String(i+1)));
+
+    const nm = document.createElement("input");
+    nm.className = "lr-name"; nm.placeholder = "Label (optional)"; nm.value = r.name || "";
+    nm.oninput = () => {
+      state.rows[i].name = nm.value; saveLinks();
+      const l = state.locs.find(x => x.rowIdx === i);
+      if(l){ l.name = nm.value.trim() || l.autoName || ("Location " + (i+1)); renderFilters(); refresh(); renderLoaded(); }
+    };
+    row.appendChild(nm);
+
+    const url = document.createElement("input");
+    url.className = "lr-url"; url.placeholder = "https://docs.google.com/spreadsheets/d/…";
+    url.value = r.url || "";
+    url.oninput = () => { state.rows[i].url = url.value; saveLinks(); };
+    url.onkeydown = e => { if(e.key === "Enter") loadAll(); };
+    row.appendChild(url);
+
+    let st = '<span style="opacity:.6">empty</span>';
+    if(loc && loc.error) st = '<span class="bad">' + esc(loc.error) + '</span>';
+    else if(loc) st = '<span class="ok">&#10003; ' + loc.months.length + ' month tabs</span> &middot; '
+                    + nf(loc.leads.length) + ' leads loaded';
+    else if(r.url && !sheetIdFromUrl(r.url)) st = '<span class="bad">Not a Google Sheets link</span>';
+    else if(r.url) st = '<span class="wait">ready to load</span>';
+    row.appendChild(el("div","lr-status", st));
+
+    box.appendChild(row);
+  });
+  const n = state.locs.filter(l => !l.error && l.months.length).length;
+  $("loadBadge").classList.toggle("on", n > 0);
+  $("loadText").textContent = n
+    ? n + " location" + (n===1?"":"s") + " loaded · " + nf(state.locs.reduce((a,l)=>a+l.leads.length,0)) + " leads"
+    : "No reports loaded";
+}
+
+function renderLoaded(){
+  const box = $("loadStatus");
+  if(!state.locs.length){ box.innerHTML = ""; return; }
+  box.innerHTML = '<div class="loaded">' + state.locs.map(l => {
+    if(l.error) return '<div class="loaded-item bad"><span class="nm">Row ' + (l.rowIdx+1) + '</span>'
+      + '<span class="bad-msg">' + esc(l.error) + '</span></div>';
+    const ms = l.months;
+    return '<div class="loaded-item"><span class="nm">' + esc(l.name) + '</span>'
+      + '<span class="mt"><b>' + ms.length + '</b> month tabs'
+      + (l.tabTotal ? ' <span style="opacity:.7">of ' + l.tabTotal + '</span>' : '')
+      + (ms.length ? ' &middot; ' + esc(monthLabel(ms[0])) + ' &rarr; ' + esc(monthLabel(ms[ms.length-1])) : '')
+      + '<br><b>' + nf(l.leads.length) + '</b> leads downloaded ('
+      + l.fetched.size + ' of ' + ms.length + ' months)</span></div>';
+  }).join("") + '</div>';
+}
+
+/* ============================================================
+   LOAD
+   ============================================================ */
+let loading = false;
+async function loadAll(){
+  if(loading) return;
+  const wanted = state.rows.map((r,i) => ({ ...r, rowIdx:i, sheetId:sheetIdFromUrl(r.url) }))
+                           .filter(r => (r.url||"").trim());
+  if(!wanted.length){ alert("Paste at least one Google Sheets link first."); return; }
+
+  loading = true;
+  let rangeMiss = false;
+  saveLinks();
+  $("btnLoadAll").disabled = true; $("btnLoadAll").textContent = "Loading…";
+  try {
+    // Keep already-loaded sheets (and their downloaded months) when re-loading.
+    // Keyed by sheet, as a stack, so repeating the same link across rows still
+    // hands each row its own already-loaded copy instead of collapsing them.
+    const keep = new Map();
+    state.locs.filter(l => !l.error).forEach(l => {
+      if(!keep.has(l.sheetId)) keep.set(l.sheetId, []);
+      keep.get(l.sheetId).push(l);
+    });
+    const locs = wanted.map(r => {
+      if(!r.sheetId)
+        return { id:nextLocId++, rowIdx:r.rowIdx, sheetId:null, name:"Row "+(r.rowIdx+1), months:[], tabNames:{},
+                 fetched:new Set(), leads:[], error:"Not a Google Sheets link" };
+      const prev = (keep.get(r.sheetId) || []).shift();
+      if(prev){                                   // reuse the download, refresh the label
+        prev.rowIdx = r.rowIdx;
+        prev.name = (r.name||"").trim() || prev.autoName || ("Location " + (r.rowIdx+1));
+        return prev;
+      }
+      return { id:nextLocId++, rowIdx:r.rowIdx, sheetId:r.sheetId, gid:(/[?#&]gid=(\d+)/.exec(r.url)||[])[1] || null,
+               name:(r.name||"").trim() || ("Location " + (r.rowIdx+1)), autoName:null,
+               months:[], tabNames:{}, fetched:new Set(), leads:[], error:null };
+    });
+    state.locs = locs;
+    renderRows(); renderLoaded();
+
+    // ── phase 1: find the month tabs ─────────────────────────────────────────
+    const fresh = locs.filter(l => l.sheetId && !l.months.length && !l.error);
+    if(fresh.length){
+      progShow("Reading tab lists…");
+      let done = 0;
+      await Promise.all(fresh.map(async l => {
+        try { await prepareLoc(l); }
+        catch(e){ l.error = e.message || String(e); }
+        if(!l.error && !(state.rows[l.rowIdx].name||"").trim() && l.autoName) l.name = l.autoName;
+        progStep(++done, fresh.length, "Reading tab lists…");
+        renderRows(); renderLoaded();
+      }));
+    }
+
+    const ok = locs.filter(l => !l.error && l.months.length);
+    if(!ok.length){ progHide(); return; }
+
+    state.selLocs = new Set(ok.map(l => l.id));
+
+    // Download exactly the months the user asked for, limited to the ones that exist.
+    const union = [...new Set(ok.flatMap(l => l.months))].sort();
+    const asked = monthsBetween(state.range.from, state.range.to);
+    let want = union.filter(m => asked.includes(m));
+    if(!want.length){
+      // Nothing in the chosen window — fall back to the newest months there are,
+      // and say so rather than showing an empty dashboard.
+      want = union.filter(m => m <= nowKey()).slice(-3);
+      if(!want.length) want = union.slice(-3);
+      rangeMiss = true;
+    }
+    state.selMonths = new Set(want);
+
+    await ensureMonths(want);
+    state.hiddenTypes = new Set();
+    renderRows(); renderLoaded(); renderFilters(); refresh();
+    if(rangeMiss)
+      alert("None of the sheets have tabs for " + monthLabel(state.range.from) + " – " + monthLabel(state.range.to)
+          + ".\nShowing the " + want.length + " most recent months they do have instead.");
+    showDash();
+  } finally {
+    progHide();
+    loading = false;
+    $("btnLoadAll").disabled = false; $("btnLoadAll").textContent = "Load all reports";
+  }
+}
+
+/** Download any selected month not already in memory. */
+async function ensureMonths(keys){
+  const jobs = [];
+  state.locs.forEach(l => {
+    if(l.error || !l.sheetId) return;
+    keys.forEach(k => { if(l.months.includes(k) && !l.fetched.has(k)) jobs.push({ l, k }); });
+  });
+  if(!jobs.length) return;
+  progShow("Downloading " + jobs.length + " month tab" + (jobs.length===1?"":"s") + "…");
+  await pool(jobs, 6, async j => {
+    const leads = await fetchMonth(j.l, j.k);
+    j.l.leads.push(...leads);
+    j.l.fetched.add(j.k);
+  }, (d,t) => progStep(d,t));
+  const bad = jobs.filter(j => j.err);
+  if(bad.length){
+    const byLoc = new Map();
+    bad.forEach(j => byLoc.set(j.l, (byLoc.get(j.l)||0)+1));
+    [...byLoc.entries()].forEach(([l,n]) => { l.warn = n + " month tab" + (n===1?"":"s") + " failed to download"; });
+  }
+  progHide();
+  renderRows(); renderLoaded();
+}
+
+/* ============================================================
+   FILTER CHIPS
+   ============================================================ */
+function allMonths(){ const s = new Set(); state.locs.forEach(l => l.months.forEach(m => s.add(m))); return [...s].sort(); }
+function allTypes(){ const s = new Set(); state.locs.forEach(l => l.leads.forEach(L => s.add(L.leadType))); return [...s].sort(); }
+
+function afterLoadChange(){
+  const months = allMonths();
+  state.selMonths = new Set([...state.selMonths].filter(m => months.includes(m)));
+  if(!state.selMonths.size) months.slice(-3).forEach(m => state.selMonths.add(m));
+  state.selLocs = new Set(state.locs.filter(l => !l.error).map(l => l.id));
+  state.hiddenTypes = new Set();
+  state.reasonFilter = null;
+  renderRows(); renderLoaded();
+  if(state.locs.some(l => l.months.length)){ renderFilters(); refresh(); }
+  else showSetup();
+}
+
+async function setMonths(next){
+  state.selMonths = next;
+  renderFilters();
+  await ensureMonths([...next]);
+  renderFilters(); refresh();
+}
+
+/** Left-hand location panels: name, volume, booking rate and a booked/not-booked
+    bar, each one a toggle for whether that location is in the current view. */
+function renderLocPanels(){
+  const box = $("locPanels"); box.innerHTML = "";
+  const locs = state.locs.filter(l => !l.error && l.months.length);
+  if(!locs.length){ box.innerHTML = '<div class="lp-sub">No locations loaded.</div>'; return; }
+  locs.forEach(l => {
+    const on = state.selLocs.has(l.id);
+    const ls = l.leads.filter(L => state.selMonths.has(L.month) && state.selTypes.has(L.leadType));
+    const a = agg(ls);
+    const w = x => a.total ? (x / a.total * 100) : 0;
+    const p = el("div","locpanel " + (on ? "on" : "off"));
+    p.innerHTML =
+      '<div class="lp-name"><span class="tick">' + (on ? "&#10003;" : "") + '</span>' + esc(l.name) + '</div>' +
+      '<div class="lp-stats"><span><b>' + nf(a.total) + '</b> leads</span>' +
+        '<span class="lp-rate" style="color:' + rateColor(a.rate) + '">' +
+          (a.rate==null ? "&mdash;" : (a.rate*100).toFixed(1) + "%") + '</span></div>' +
+      '<div class="lp-bar">' +
+        '<i style="width:' + w(a.booked)    + '%;background:var(--green)"></i>' +
+        '<i style="width:' + w(a.notBooked) + '%;background:var(--red)"></i>' +
+        '<i style="width:' + w(a.unknown)   + '%;background:var(--slate)"></i></div>' +
+      '<div class="lp-sub">' + nf(a.booked) + ' booked &middot; ' + nf(a.notBooked) + ' not booked</div>';
+    p.onclick = () => {
+      if(on && state.selLocs.size === 1) return;        // never leave the view empty
+      on ? state.selLocs.delete(l.id) : state.selLocs.add(l.id);
+      renderFilters(); refresh();
+    };
+    box.appendChild(p);
+  });
+}
+
+function renderFilters(){
+  const months = allMonths();
+  const has = state.locs.some(l => l.months.length);
+  if(!has) return;
+
+  // Types are derived from what is downloaded so far, so track what is HIDDEN
+  // rather than what is selected — otherwise a type that appears in a
+  // later-loaded month would come in switched off.
+  state.selTypes = new Set(allTypes().filter(t => !state.hiddenTypes.has(t)));
+
+  const mBox = $("monthChips"); mBox.innerHTML = "";
+  const perMonth = {};
+  state.locs.forEach(l => l.leads.forEach(L => { perMonth[L.month] = (perMonth[L.month]||0)+1; }));
+  const desc = [...months].reverse();                       // newest first
+  const LIMIT = 18;
+  const collapsed = !state.showAllMonths && desc.length > LIMIT;
+  const shown = collapsed ? [...new Set([...desc.slice(0,LIMIT), ...desc.filter(m => state.selMonths.has(m))])].sort().reverse()
+                          : desc;
+  shown.forEach(m => {
+    const on = state.selMonths.has(m);
+    const got = state.locs.some(l => l.fetched.has(m));
+    const n = perMonth[m] || 0;
+    const c = el("div","chip" + (on?" on":"") + (got?"":" pending"),
+      esc(monthLabel(m)) + (got ? '<span class="n">' + nf(n) + '</span>' : ''));
+    c.title = got ? (n ? n + " leads" : "This month's tab is empty")
+                  : "Not downloaded yet — click to load";
+    c.onclick = () => {
+      const next = new Set(state.selMonths);
+      next.has(m) ? next.delete(m) : next.add(m);
+      setMonths(next);
+    };
+    mBox.appendChild(c);
+  });
+  if(desc.length > LIMIT){
+    const t = el("div","chip", state.showAllMonths ? "Show fewer" : "+ " + (desc.length - shown.length) + " older months");
+    t.style.borderStyle = "dashed";
+    t.onclick = () => { state.showAllMonths = !state.showAllMonths; renderFilters(); };
+    mBox.appendChild(t);
+  }
+
+  renderLocPanels();
+
+  const tBox = $("typeChips"); tBox.innerHTML = "";
+  const perType = {};
+  state.locs.forEach(l => l.leads.forEach(L => { if(state.selMonths.has(L.month) && state.selLocs.has(L.loc)) perType[L.leadType] = (perType[L.leadType]||0)+1; }));
+  allTypes().forEach(t => {
+    const c = el("div","chip"+(state.hiddenTypes.has(t)?"":" on"), esc(t) + '<span class="n">' + nf(perType[t]||0) + '</span>');
+    c.onclick = () => { state.hiddenTypes.has(t) ? state.hiddenTypes.delete(t) : state.hiddenTypes.add(t); renderFilters(); refresh(); };
+    tBox.appendChild(c);
+  });
+}
+
+document.querySelectorAll("#periodCard .mini-actions button").forEach(b => {
+  b.onclick = () => {
+    const months = allMonths();
+    const v = b.dataset.m;
+    // "None" would blank every panel, so keep the newest month in play.
+    setMonths(v === "all"  ? new Set(months)
+            : v === "none" ? new Set(months.slice(-1))
+                           : new Set(months.slice(-parseInt(v,10))));
+  };
+});
+$("locAllBtn").onclick  = () => { state.selLocs = new Set(state.locs.filter(l => !l.error && l.months.length).map(l => l.id)); renderFilters(); refresh(); };
+$("typeAllBtn").onclick = () => { state.hiddenTypes = new Set(); renderFilters(); refresh(); };
+
+/* ============================================================
+   AGGREGATION
+   ============================================================ */
+function locName(id){ const l = state.locs.find(x => x.id === id); return l ? l.name : "?"; }
+function activeLocs(){ return state.locs.filter(l => !l.error && l.months.length && state.selLocs.has(l.id)); }
+
+function selectedLeads(){
+  const out = [];
+  activeLocs().forEach(l => l.leads.forEach(L => {
+    if(state.selMonths.has(L.month) && state.selTypes.has(L.leadType)) out.push(L);
+  }));
+  return out;
+}
+function agg(leads){
+  let booked=0, notBooked=0, unknown=0;
+  leads.forEach(L => { if(L.booked===true) booked++; else if(L.booked===false) notBooked++; else unknown++; });
+  const decided = booked + notBooked;
+  return { total:leads.length, booked, notBooked, unknown, decided, rate: decided ? booked/decided : null };
+}
+function groupBy(leads, fn){
+  const m = new Map();
+  leads.forEach(L => { const k = fn(L); if(!m.has(k)) m.set(k,[]); m.get(k).push(L); });
+  return m;
+}
+const mean = a => a.length ? a.reduce((x,y)=>x+y,0)/a.length : 0;
+function stdev(a){ if(a.length < 2) return 0; const m = mean(a); return Math.sqrt(a.reduce((s,x)=>s+(x-m)*(x-m),0)/(a.length-1)); }
+const rateColor = r => r==null ? "var(--slate)" : r>=.6 ? "var(--green-dark)" : r>=.45 ? "var(--accent-dark)" : "var(--red)";
+const rateBg    = r => r==null ? "#e2e8f0"     : r>=.6 ? "#dcfce7"          : r>=.45 ? "#fef3c7"        : "#fee2e2";
+function dur(s){ if(!s) return "0:00"; const m = Math.floor(s/60), x = s%60; return m + ":" + String(x).padStart(2,"0"); }
+
+/* ============================================================
+   KPI ROW
+   ============================================================ */
+function renderKPIs(leads){
+  const a = agg(leads);
+  const months = [...state.selMonths].sort();
+  // Prior period = the same number of months immediately before the earliest selected month.
+  const all = allMonths();
+  const firstIdx = all.indexOf(months[0]);
+  const prevMonths = firstIdx > 0 ? all.slice(Math.max(0, firstIdx - months.length), firstIdx) : [];
+  const prev = [];
+  activeLocs().forEach(l => l.leads.forEach(L => { if(prevMonths.includes(L.month) && state.selTypes.has(L.leadType)) prev.push(L); }));
+  const pa = agg(prev);
+
+  const delta = (cur, old, invert) => {
+    if(!old || old === 0 || cur == null) return "";
+    const d = (cur - old) / old * 100;
+    const up = d >= 0;
+    const good = invert ? !up : up;
+    return '<span class="' + (good?"up":"down") + '">' + (up?"▲":"▼") + " " + Math.abs(d).toFixed(1) + "%</span> vs. prior " + prevMonths.length + "mo";
+  };
+
+  const notAns = leads.filter(L => L.reason === "Missed / Not Answered").length;
+  const recov  = leads.filter(L => L.booked === false && RECOVERABLE.has(L.reason)).length;
+  const answered = leads.filter(L => L.leadType === "Phone" && L.answerSec != null);
+  const avgAns = answered.length ? Math.round(mean(answered.map(L => L.answerSec))) : null;
+
+  const cards = [
+    { c:"",       v:nf(a.total),                     l:"Total leads",     s: prevMonths.length ? delta(a.total, pa.total) : months.length + " month" + (months.length===1?"":"s") + " selected" },
+    { c:"green",  v:nf(a.booked),                    l:"Booked",          s: a.total ? pct(a.booked,a.total)+"% of all leads" : "—" },
+    { c:"red",    v:nf(a.notBooked),                 l:"Not booked",      s: a.total ? pct(a.notBooked,a.total)+"% of all leads" : "—" },
+    { c:"orange", v:a.rate==null?"—":(a.rate*100).toFixed(1)+"%", l:"Booking rate",
+      s: (pa.rate!=null && a.rate!=null)
+          ? '<span class="' + (a.rate >= pa.rate ? "up" : "down") + '">' + (a.rate >= pa.rate ? "▲" : "▼") + " "
+            + Math.abs((a.rate - pa.rate) * 100).toFixed(1) + "pt</span> vs. prior " + prevMonths.length + "mo"
+          : "booked ÷ (booked + not booked)" },
+    { c:"purple", v:nf(recov),                       l:"Recoverable",     s:"missed, &lt;30s, booked-out, call-backs" },
+    { c:"red",    v:nf(notAns),                      l:"Missed / unanswered", s: a.total ? pct(notAns,a.total)+"% of all leads" : "—" },
+    { c:"slate",  v:avgAns==null?"—":avgAns+"s",     l:"Avg. answer time", s:"seconds to pick up" }
+  ];
+  $("kpis").innerHTML = cards.map(k =>
+    '<div class="kpi ' + k.c + '"><div class="kpi-val">' + k.v + '</div><div class="kpi-label">' + k.l + '</div><div class="kpi-sub">' + k.s + '</div></div>'
+  ).join("");
+}
+
+/* ============================================================
+   BOOKED VS NOT BOOKED  ·  LEAD TYPE
+   ============================================================ */
+function stackedRow(label, sub, a, maxTotal){
+  const w = x => maxTotal ? (x / maxTotal * 100) : 0;
+  return '<div class="barrow">' +
+    '<div class="lbl">' + esc(label) + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</div>' +
+    '<div class="bartrack">' +
+      '<div class="barseg booked" style="width:' + w(a.booked) + '%" title="Booked ' + a.booked + '"></div>' +
+      '<div class="barseg notbooked" style="width:' + w(a.notBooked) + '%" title="Not booked ' + a.notBooked + '"></div>' +
+      '<div class="barseg unknown" style="width:' + w(a.unknown) + '%" title="Unmarked ' + a.unknown + '"></div>' +
+    '</div>' +
+    '<div class="barval"><span style="color:' + rateColor(a.rate) + '">' + (a.rate==null?"—":(a.rate*100).toFixed(1)+"%") + '</span>' +
+      '<small> · ' + nf(a.total) + '</small></div>' +
+  '</div>';
+}
+
+function renderByLoc(leads){
+  const g = groupBy(leads, L => L.loc);
+  const rows = [...g.entries()].map(([id,ls]) => ({ id, name:locName(id), a:agg(ls) })).sort((x,y) => y.a.total - x.a.total);
+  const max = Math.max(1, ...rows.map(r => r.a.total));
+  $("bookedByLoc").innerHTML = rows.length
+    ? rows.map(r => stackedRow(r.name, nf(r.a.booked) + " booked · " + nf(r.a.notBooked) + " not booked", r.a, max)).join("")
+    : '<div class="empty"><p>No leads in this selection.</p></div>';
+}
+
+function renderByType(leads){
+  const g = groupBy(leads, L => L.leadType);
+  const rows = [...g.entries()].map(([t,ls]) => ({ t, a:agg(ls) })).sort((x,y) => y.a.total - x.a.total);
+  const max = Math.max(1, ...rows.map(r => r.a.total));
+  const tot = leads.length;
+  $("byType").innerHTML = rows.length
+    ? rows.map(r => stackedRow(r.t, pct(r.a.total,tot) + "% of volume · " + nf(r.a.booked) + " booked", r.a, max)).join("")
+    : '<div class="empty"><p>No leads in this selection.</p></div>';
+}
+
+/* ============================================================
+   MONTHLY TREND (hand-drawn SVG — stacked bars + booking-rate line)
+   ============================================================ */
+function renderTrend(leads){
+  const months = [...state.selMonths].sort();
+  if(!months.length){ $("trendChart").innerHTML = '<div class="empty"><p>Select at least one month.</p></div>'; return; }
+  const per = months.map(m => { const ls = leads.filter(L => L.month === m); return { m, a:agg(ls) }; });
+  const maxT = Math.max(1, ...per.map(p => p.a.total));
+
+  const W = 1000, H = 300, ML = 46, MR = 46, MT = 18, MB = 46;
+  const iw = W - ML - MR, ih = H - MT - MB;
+  const bw = Math.min(110, iw / per.length * 0.62);
+  const cx = i => ML + iw / per.length * (i + 0.5);
+  const y  = v => MT + ih - (v / maxT) * ih;
+
+  let s = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="display:block" preserveAspectRatio="xMidYMid meet">';
+  // grid + left axis (volume)
+  for(let g=0; g<=4; g++){
+    const v = maxT * g / 4, yy = y(v);
+    s += '<line x1="' + ML + '" y1="' + yy + '" x2="' + (W-MR) + '" y2="' + yy + '" stroke="#dde3ed" stroke-width="1"/>';
+    s += '<text x="' + (ML-8) + '" y="' + (yy+4) + '" font-size="10" fill="#64748b" text-anchor="end" font-weight="600">' + Math.round(v) + '</text>';
+  }
+  // right axis (booking rate 0–100%)
+  for(let g=0; g<=4; g++){
+    const yy = MT + ih - ih * g/4;
+    s += '<text x="' + (W-MR+8) + '" y="' + (yy+4) + '" font-size="10" fill="#f99e23" text-anchor="start" font-weight="700">' + (g*25) + '%</text>';
+  }
+  per.forEach((p,i) => {
+    const x = cx(i) - bw/2;
+    const hB = p.a.total ? (p.a.booked  /maxT)*ih : 0;
+    const hN = p.a.total ? (p.a.notBooked/maxT)*ih : 0;
+    const hU = p.a.total ? (p.a.unknown /maxT)*ih : 0;
+    let yy = MT + ih;
+    yy -= hB; s += '<rect x="'+x+'" y="'+yy+'" width="'+bw+'" height="'+hB+'" fill="#22c55e" rx="2"><title>'+monthLong(p.m)+' — '+p.a.booked+' booked</title></rect>';
+    yy -= hN; s += '<rect x="'+x+'" y="'+yy+'" width="'+bw+'" height="'+hN+'" fill="#ef4444"><title>'+monthLong(p.m)+' — '+p.a.notBooked+' not booked</title></rect>';
+    yy -= hU; s += '<rect x="'+x+'" y="'+yy+'" width="'+bw+'" height="'+hU+'" fill="#94a3b8" rx="2"><title>'+monthLong(p.m)+' — '+p.a.unknown+' unmarked</title></rect>';
+    s += '<text x="'+cx(i)+'" y="'+(MT+ih+17)+'" font-size="10.5" fill="#1a202c" text-anchor="middle" font-weight="700">'+monthLabel(p.m)+'</text>';
+    s += '<text x="'+cx(i)+'" y="'+(MT+ih+31)+'" font-size="9.5" fill="#64748b" text-anchor="middle" font-weight="600">'+nf(p.a.total)+' leads</text>';
+  });
+  // booking-rate line on the right axis
+  const pts = per.map((p,i) => p.a.rate == null ? null : [cx(i), MT + ih - p.a.rate * ih]).filter(Boolean);
+  if(pts.length > 1)
+    s += '<polyline points="' + pts.map(p => p[0]+","+p[1]).join(" ") + '" fill="none" stroke="#f99e23" stroke-width="2.5" stroke-linejoin="round"/>';
+  per.forEach((p,i) => {
+    if(p.a.rate == null) return;
+    const yy = MT + ih - p.a.rate * ih;
+    s += '<circle cx="'+cx(i)+'" cy="'+yy+'" r="4.5" fill="#fff" stroke="#f99e23" stroke-width="2.5"><title>'+monthLong(p.m)+' — '+(p.a.rate*100).toFixed(1)+'% booking rate</title></circle>';
+    s += '<text x="'+cx(i)+'" y="'+(yy-10)+'" font-size="10" fill="#d7891f" text-anchor="middle" font-weight="800">'+(p.a.rate*100).toFixed(0)+'%</text>';
+  });
+  s += '</svg>';
+  s += '<div class="legend"><span><i style="background:var(--green)"></i>Booked</span><span><i style="background:var(--red)"></i>Not booked</span>'
+     + '<span><i style="background:var(--slate)"></i>Unmarked</span><span><i style="background:var(--accent)"></i>Booking rate (right axis)</span></div>';
+  $("trendChart").innerHTML = s;
+}
+
+/* ============================================================
+   REASONS NOT BOOKED
+   ============================================================ */
+function renderReasons(leads){
+  const nb = leads.filter(L => L.booked === false);
+  const noMark = nb.filter(L => L.unmarked).length;
+  $("reasonSub").textContent = nf(nb.length) + " not-booked leads in this selection"
+    + (noMark ? " · " + nf(noMark) + " had no BOOKED / NOT BOOKED mark in the sheet" : "");
+  if(!nb.length){
+    $("reasonBars").innerHTML = '<div class="empty"><p>No not-booked leads in this selection. If a location came from Google\'s raw export, it has no booked/not-booked column.</p></div>';
+    $("reasonMatrix").innerHTML = ""; return;
+  }
+  const counts = {};
+  nb.forEach(L => { counts[L.reason] = (counts[L.reason]||0)+1; });
+  const rows = REASONS.filter(r => counts[r]).map(r => ({ r, n:counts[r] })).sort((a,b) => b.n - a.n);
+  const max = rows[0].n;
+
+  $("reasonBars").innerHTML = rows.map(r => {
+    const tag = RECOVERABLE.has(r.r) ? ' <span class="badge t" style="background:#fef3c7;color:#b45309">recoverable</span>'
+              : DISPUTABLE.has(r.r)  ? ' <span class="badge t" style="background:#dbeafe;color:#1d4ed8">disputable</span>' : '';
+    const on = state.reasonFilter === r.r;
+    return '<div class="rbar" data-reason="' + esc(r.r) + '" style="' + (on?"background:var(--primary-light)":"") + '">' +
+      '<div class="rlbl"><span class="dot-key" style="background:' + REASON_COLORS[r.r] + '"></span>' + esc(r.r) + tag + '</div>' +
+      '<div class="rtrack"><div class="rfill" style="width:' + (r.n/max*100) + '%;background:' + REASON_COLORS[r.r] + '"></div></div>' +
+      '<div class="rval">' + nf(r.n) + ' <small>' + pct(r.n, nb.length) + '%</small></div></div>';
+  }).join("");
+  $("reasonBars").querySelectorAll(".rbar").forEach(b => {
+    b.onclick = () => { state.reasonFilter = state.reasonFilter === b.dataset.reason ? null : b.dataset.reason; refresh(); };
+  });
+
+  // reason x location matrix
+  const locs = activeLocs().filter(l => nb.some(L => L.loc === l.id));
+  let t = '<thead><tr><th>Reason</th>' + locs.map(l => '<th>' + esc(l.name) + '</th>').join("") + '<th>All</th></tr></thead><tbody>';
+  rows.forEach(r => {
+    t += '<tr><td><span class="dot-key" style="background:' + REASON_COLORS[r.r] + ';margin-right:7px"></span>' + esc(r.r) + '</td>';
+    locs.forEach(l => {
+      const denom = nb.filter(L => L.loc === l.id).length;
+      const n = nb.filter(L => L.loc === l.id && L.reason === r.r).length;
+      t += '<td>' + (n ? nf(n) + ' <span style="color:var(--text-muted);font-weight:600">' + pct(n,denom) + '%</span>' : '<span style="color:var(--border)">—</span>') + '</td>';
+    });
+    t += '<td><b>' + nf(r.n) + '</b> <span style="color:var(--text-muted);font-weight:600">' + pct(r.n,nb.length) + '%</span></td></tr>';
+  });
+  t += '<tr class="tot"><td>Total not booked</td>' + locs.map(l => '<td>' + nf(nb.filter(L => L.loc === l.id).length) + '</td>').join("")
+     + '<td>' + nf(nb.length) + '</td></tr></tbody>';
+  $("reasonMatrix").innerHTML = t;
+}
+
+/* ============================================================
+   MONTH x LOCATION MATRIX
+   ============================================================ */
+function renderMatrix(leads){
+  const months = [...state.selMonths].sort();
+  const locs = activeLocs();
+  let t = '<thead><tr><th>Location</th>' + months.map(m => '<th>' + esc(monthLabel(m)) + '</th>').join("") + '<th>Period total</th></tr></thead><tbody>';
+  locs.forEach(l => {
+    t += '<tr><td>' + esc(l.name) + '</td>';
+    months.forEach(m => {
+      const a = agg(leads.filter(L => L.loc === l.id && L.month === m));
+      t += '<td>' + (a.total
+        ? nf(a.total) + '<br><span class="rate-pill" style="background:' + rateBg(a.rate) + ';color:' + rateColor(a.rate) + '">'
+          + (a.rate==null?"—":(a.rate*100).toFixed(0)+"%") + '</span>'
+        : '<span style="color:var(--border)">—</span>') + '</td>';
+    });
+    const at = agg(leads.filter(L => L.loc === l.id));
+    t += '<td><b>' + nf(at.total) + '</b><br><span class="rate-pill" style="background:' + rateBg(at.rate) + ';color:' + rateColor(at.rate) + '">'
+       + (at.rate==null?"—":(at.rate*100).toFixed(1)+"%") + '</span></td></tr>';
+  });
+  t += '<tr class="tot"><td>All locations</td>';
+  months.forEach(m => { const a = agg(leads.filter(L => L.month === m));
+    t += '<td>' + nf(a.total) + '<br><span style="color:' + rateColor(a.rate) + '">' + (a.rate==null?"—":(a.rate*100).toFixed(0)+"%") + '</span></td>'; });
+  const ga = agg(leads);
+  t += '<td>' + nf(ga.total) + '<br><span style="color:' + rateColor(ga.rate) + '">' + (ga.rate==null?"—":(ga.rate*100).toFixed(1)+"%") + '</span></td></tr></tbody>';
+  $("matrix").innerHTML = t;
+}
+
+/* ============================================================
+   ANOMALY DETECTION
+   Every flag is a z-score against a real baseline — either the
+   location's own month history, or the peer average across the
+   loaded locations for the same period. Nothing is hard-coded.
+   ============================================================ */
+const SEV_RANK = { high:0, med:1, info:2, good:3 };
+function zScore(cur, base){
+  if(base.length < 3) return null;
+  const mu = mean(base), sd = stdev(base);
+  if(!sd) return null;
+  return { z:(cur-mu)/sd, mu, sd };
+}
+function sevOf(z){ const a = Math.abs(z); return a >= 2.5 ? "high" : a >= 1.8 ? "med" : a >= 1.3 ? "info" : null; }
+
+function detectAnomalies(leads){
+  const out = [];
+  const selMonths = [...state.selMonths].sort();
+  const locs = activeLocs();
+  const push = (sev, where, metric, body) => out.push({ sev, where, metric, body });
+
+  // ── 1. Each selected month vs. that location's own history ──────────────
+  locs.forEach(loc => {
+    const pool = loc.leads.filter(L => state.selTypes.has(L.leadType));
+    const byMonth = groupBy(pool, L => L.month);
+    const months = [...byMonth.keys()].sort();
+    if(months.length < 4) return;
+
+    // Precomputed once per location. Baselines are then "everything minus this month",
+    // which keeps the whole pass linear in leads instead of quadratic in months.
+    const metrics = months.map(m => {
+      const ls = byMonth.get(m), a = agg(ls);
+      const nb = ls.filter(L => L.booked === false);
+      const rc = {};
+      nb.forEach(L => { rc[L.reason] = (rc[L.reason]||0)+1; });
+      return { m, ls, nb, rc, total:a.total, rate:a.rate,
+               missed: a.total ? ls.filter(L => L.reason === "Missed / Not Answered").length / a.total : 0 };
+    });
+    const totals = { nb:0, rc:{} };
+    metrics.forEach(x => {
+      totals.nb += x.nb.length;
+      for(const k in x.rc) totals.rc[k] = (totals.rc[k]||0) + x.rc[k];
+    });
+    const idx = new Map(metrics.map((x,i) => [x.m, i]));
+
+    selMonths.forEach(m => {
+      const i = idx.get(m); if(i == null) return;
+      const cur = metrics[i];
+      const base = metrics.filter((_,j) => j !== i);
+
+      const v = zScore(cur.total, base.map(x => x.total));
+      if(v && sevOf(v.z) && cur.total >= 5){
+        const up = v.z > 0;
+        push(up ? (Math.abs(v.z)>=2.5?"good":"info") : sevOf(v.z), loc.name + " · " + monthLong(m), "z = " + v.z.toFixed(1),
+          "Lead volume of <b>" + nf(cur.total) + "</b> is " + (up?"well above":"well below") + " this location's usual <b>" +
+          v.mu.toFixed(0) + "</b> per month (±" + v.sd.toFixed(0) + " across " + base.length + " other months)." +
+          (up ? " Check that budget and bids kept pace." : " Worth checking budget pacing, bid changes, pause windows or ranking loss."));
+      }
+
+      if(cur.rate != null){
+        const r = zScore(cur.rate, base.filter(x => x.rate != null).map(x => x.rate));
+        if(r && sevOf(r.z) && cur.total >= 10){
+          const up = r.z > 0;
+          push(up ? "good" : sevOf(r.z), loc.name + " · " + monthLong(m), "z = " + r.z.toFixed(1),
+            "Booking rate of <b>" + (cur.rate*100).toFixed(1) + "%</b> is " + (up?"above":"below") + " this location's normal <b>" +
+            (r.mu*100).toFixed(1) + "%</b> (±" + (r.sd*100).toFixed(1) + "pt). That is " +
+            Math.abs(Math.round((cur.rate - r.mu) * cur.total)) + " " + (up?"more":"fewer") + " booked jobs than a typical month at this volume.");
+        }
+      }
+
+      const ms = zScore(cur.missed, base.map(x => x.missed));
+      if(ms && ms.z >= 1.3 && cur.total >= 10){
+        push(sevOf(ms.z), loc.name + " · " + monthLong(m), "z = " + ms.z.toFixed(1),
+          "Missed / unanswered calls hit <b>" + (cur.missed*100).toFixed(1) + "%</b> of leads, against a normal <b>" +
+          (ms.mu*100).toFixed(1) + "%</b>. Google weights answer rate in LSA ranking, so this compounds.");
+      }
+
+      // reason-mix shift: this month's share of a reason vs. every other month's share
+      const baseNb = totals.nb - cur.nb.length;
+      if(cur.nb.length >= 8 && baseNb >= 20){
+        REASONS.forEach(rs => {
+          const c = cur.rc[rs] || 0;
+          const b = (totals.rc[rs] || 0) - c;
+          const sc = c / cur.nb.length, sb = b / baseNb;
+          if(c >= 4 && sb > 0.01 && sc >= sb * 2)
+            push(sc >= sb*3 ? "med" : "info", loc.name + " · " + monthLong(m), (sc/sb).toFixed(1) + "× normal",
+              "<b>" + esc(rs) + "</b> caused <b>" + pct(c, cur.nb.length) + "%</b> of this month's lost leads (" + c +
+              " of " + cur.nb.length + "), versus <b>" + pct(b, baseNb) + "%</b> in other months.");
+        });
+      }
+    });
+  });
+
+  // ── 2. Location vs. its peers over the same selected period ─────────────
+  if(locs.length >= 3){
+    const rows = locs.map(l => { const a = agg(leads.filter(L => L.loc === l.id)); return { l, a }; })
+                     .filter(r => r.a.decided >= 15 && r.a.rate != null);
+    if(rows.length >= 3){
+      const rates = rows.map(r => r.a.rate);
+      rows.forEach(r => {
+        const peers = rates.filter(x => x !== r.a.rate);
+        const z = zScore(r.a.rate, peers.length >= 3 ? peers : rates);
+        if(z && sevOf(z.z))
+          push(z.z > 0 ? "good" : sevOf(z.z), r.l.name + " · selected period", "z = " + z.z.toFixed(1),
+            "Booking rate <b>" + (r.a.rate*100).toFixed(1) + "%</b> sits " + (z.z>0?"above":"below") +
+            " the peer average of <b>" + (z.mu*100).toFixed(1) + "%</b> across the other loaded locations" +
+            (z.z > 0 ? " — worth copying what this dispatch team does." : " — the gap is worth " +
+              Math.abs(Math.round((z.mu - r.a.rate) * r.a.decided)) + " booked jobs over this period."));
+      });
+    }
+  }
+
+  // ── 3. Single-day spikes inside the selected period ─────────────────────
+  locs.forEach(l => {
+    const ls = leads.filter(L => L.loc === l.id);
+    if(ls.length < 30) return;
+    const byDay = groupBy(ls, L => L.date);
+    const counts = [...byDay.values()].map(v => v.length);
+    const mu = mean(counts), sd = stdev(counts);
+    if(!sd) return;
+    [...byDay.entries()].forEach(([d, v]) => {
+      if(v.length < 5 || (v.length - mu)/sd < 3) return;
+      const da = agg(v);
+      push("info", l.name + " · " + d, ((v.length-mu)/sd).toFixed(1) + "σ",
+        "<b>" + v.length + "</b> leads landed on a single day against a daily norm of <b>" + mu.toFixed(1) +
+        "</b>. Booking rate that day was <b>" + fmtPct(da.booked, da.decided) + "</b>" +
+        (da.rate != null && da.rate < 0.4 ? " — a capacity problem, not a lead-quality one." : "."));
+    });
+  });
+
+  out.sort((a,b) => SEV_RANK[a.sev] - SEV_RANK[b.sev]);
+  return out;
+}
+
+function renderAnomalies(leads){
+  const list = detectAnomalies(leads);
+  const box = $("anomList");
+  const counts = { high:0, med:0, info:0, good:0 };
+  list.forEach(a => counts[a.sev]++);
+  $("anomSub").textContent = list.length
+    ? counts.high + " high · " + counts.med + " medium · " + counts.info + " informational · " + counts.good + " positive"
+    : "nothing unusual detected";
+  $("anomTip").innerHTML = "Each flag is a z-score against a real baseline — the location's own month history, or the peer "
+    + "average across the loaded locations. Locations need at least four months of data before month-level flags can fire.";
+  $("btnAnomAll").classList.toggle("hidden", list.length <= 6);
+  $("btnAnomAll").textContent = state.anomExpanded ? "Show top 6" : "Show all " + list.length;
+
+  if(!list.length){
+    box.innerHTML = '<div class="empty"><p>No metric in this selection deviates far enough from its baseline to flag. '
+      + 'Load more months of history, or widen the month selection, to give the detector something to compare against.</p></div>';
+    return;
+  }
+  const shown = state.anomExpanded ? list : list.slice(0,6);
+  box.innerHTML = shown.map(a =>
+    '<div class="anom ' + a.sev + '"><div class="anom-head">' +
+      '<span class="sev ' + a.sev + '">' + (a.sev === "good" ? "positive" : a.sev) + '</span>' +
+      '<span class="anom-where">' + esc(a.where) + '</span>' +
+      '<span class="anom-metric">' + esc(a.metric) + '</span></div>' +
+      '<div class="anom-body">' + a.body + '</div></div>').join("");
+}
+
+/* ============================================================
+   PERFORMANCE INSIGHT (auto-written narrative)
+   ============================================================ */
+function renderInsights(leads){
+  const a = agg(leads), out = [];
+  const add = (ic,t) => out.push({ ic, t });
+  const months = [...state.selMonths].sort();
+  $("insSub").textContent = months.length
+    ? (months.length === 1 ? monthLong(months[0]) : monthLabel(months[0]) + " – " + monthLabel(months[months.length-1]))
+      + " · " + nf(a.total) + " leads across " + activeLocs().length + " location" + (activeLocs().length===1?"":"s")
+    : "";
+
+  if(!a.total){ $("insList").innerHTML = '<div class="empty"><p>No leads in this selection.</p></div>'; return; }
+
+  add(a.rate != null && a.rate >= .5 ? "g" : "r",
+    "Across the selection, <b class=\"m\">" + nf(a.booked) + "</b> of <b class=\"m\">" + nf(a.decided) +
+    "</b> decided leads booked — a <b class=\"m\">" + (a.rate==null?"—":(a.rate*100).toFixed(1)+"%") + "</b> booking rate." +
+    (a.unknown ? " <b class=\"m\">" + nf(a.unknown) + "</b> leads carry neither a BOOKED nor a NOT BOOKED mark and are excluded from that rate." : ""));
+
+  // month-over-month direction
+  if(months.length >= 3){
+    const series = months.map(m => agg(leads.filter(L => L.month === m))).filter(x => x.rate != null);
+    if(series.length >= 3){
+      const first = series[0].rate, last = series[series.length-1].rate;
+      const d = (last - first) * 100;
+      add(d >= 2 ? "g" : d <= -2 ? "r" : "s",
+        "Booking rate moved from <b class=\"m\">" + (first*100).toFixed(1) + "%</b> in " + monthLabel(months[0]) +
+        " to <b class=\"m\">" + (last*100).toFixed(1) + "%</b> in " + monthLabel(months[months.length-1]) + " — " +
+        (Math.abs(d) < 2 ? "essentially flat." : (d > 0 ? "an improvement of " : "a decline of ") + "<b class=\"m\">" + Math.abs(d).toFixed(1) + " points</b>."));
+    }
+  }
+
+  // best / worst location
+  const locRows = activeLocs().map(l => ({ l, a:agg(leads.filter(L => L.loc === l.id)) }))
+                              .filter(r => r.a.decided >= 10 && r.a.rate != null)
+                              .sort((x,y) => y.a.rate - x.a.rate);
+  if(locRows.length >= 2){
+    const best = locRows[0], worst = locRows[locRows.length-1];
+    add("o", "<b>" + esc(best.l.name) + "</b> leads on conversion at <b class=\"m\">" + (best.a.rate*100).toFixed(1) +
+      "%</b>; <b>" + esc(worst.l.name) + "</b> trails at <b class=\"m\">" + (worst.a.rate*100).toFixed(1) + "%</b>. Closing that gap at " +
+      esc(worst.l.name) + "'s current volume is worth <b class=\"m\">" +
+      Math.round((best.a.rate - worst.a.rate) * worst.a.decided) + "</b> more booked jobs over this period.");
+  }
+
+  // lead type conversion
+  let types = [...groupBy(leads, L => L.leadType).entries()].map(([t,ls]) => ({ t, a:agg(ls) }))
+                 .filter(x => x.a.decided >= 5).sort((x,y) => y.a.rate - x.a.rate);
+  // Booking-type leads arrive already scheduled, so leaving them in makes the winner meaningless.
+  if(types.length > 2) types = types.filter(x => x.t !== "Booking");
+  if(types.length >= 2){
+    const hi = types[0], lo = types[types.length-1];
+    add("p", "By lead type, <b>" + esc(hi.t) + "</b> converts best at <b class=\"m\">" + (hi.a.rate*100).toFixed(1) + "%</b> (" +
+      nf(hi.a.total) + " leads) while <b>" + esc(lo.t) + "</b> converts at <b class=\"m\">" + (lo.a.rate*100).toFixed(1) + "%</b> (" +
+      nf(lo.a.total) + " leads, " + pct(lo.a.total, a.total) + "% of volume)." +
+      (lo.a.rate < hi.a.rate * .6 ? " " + esc(lo.t) + " leads are the weakest link in the funnel." : ""));
+  }
+
+  // reasons
+  const nb = leads.filter(L => L.booked === false);
+  if(nb.length){
+    const counts = {}; nb.forEach(L => counts[L.reason] = (counts[L.reason]||0)+1);
+    const top = Object.entries(counts).sort((x,y) => y[1]-x[1]).slice(0,3);
+    add("r", "The top reasons leads didn't book: " + top.map(([r,n]) =>
+      "<b>" + esc(r) + "</b> (<span class=\"m\">" + nf(n) + "</span>, " + pct(n, nb.length) + "%)").join(", ") + ".");
+
+    const recov = nb.filter(L => RECOVERABLE.has(L.reason)).length;
+    if(recov)
+      add("o", "<b class=\"m\">" + nf(recov) + "</b> lost leads (<span class=\"m\">" + pct(recov, nb.length) +
+        "%</span> of all not-booked) failed on answering or availability rather than on the customer's decision. At the current booking rate those are worth roughly <b class=\"m\">" +
+        Math.round(recov * (a.rate||0)) + "</b> recoverable jobs.");
+
+    const disp = nb.filter(L => DISPUTABLE.has(L.reason)).length;
+    if(disp)
+      add("s", "<b class=\"m\">" + nf(disp) + "</b> not-booked leads were out of scope, out of area, wrong-number or solicitation — the categories Google will normally credit if disputed inside the 30-day window.");
+  }
+
+  // dispatch performance
+  const NON_AGENT = /^(booking|message|text|not answered|no answer|unanswered|missed|missed call|voicemail|lvm|invalid|under 30 seconds|not charged|n\/?a|-|—|none|unknown)$/i;
+  const disp = [...groupBy(leads.filter(L => L.dispatch && !NON_AGENT.test(L.dispatch.trim())), L => L.dispatch.trim()).entries()]
+    .map(([d,ls]) => ({ d, a:agg(ls) })).filter(x => x.a.decided >= 20).sort((x,y) => y.a.rate - x.a.rate);
+  if(disp.length >= 2)
+    add("p", "Among dispatchers handling 20+ decided leads, <b>" + esc(disp[0].d) + "</b> books <b class=\"m\">" +
+      (disp[0].a.rate*100).toFixed(1) + "%</b> and <b>" + esc(disp[disp.length-1].d) + "</b> books <b class=\"m\">" +
+      (disp[disp.length-1].a.rate*100).toFixed(1) + "%</b> — a <b class=\"m\">" +
+      ((disp[0].a.rate - disp[disp.length-1].a.rate)*100).toFixed(1) + "-point</b> spread on the same lead flow.");
+
+  // weekday
+  const wd = WD.map(d => ({ d, a:agg(leads.filter(L => L.weekday === d)) })).filter(x => x.a.decided >= 20);
+  if(wd.length >= 3){
+    const byRate = [...wd].sort((x,y) => y.a.rate - x.a.rate);
+    const byVol  = [...wd].sort((x,y) => y.a.total - x.a.total);
+    add("s", "<b>" + byVol[0].d + "</b> carries the most volume (<span class=\"m\">" + nf(byVol[0].a.total) +
+      "</span> leads). <b>" + byRate[0].d + "</b> converts best at <b class=\"m\">" + (byRate[0].a.rate*100).toFixed(1) +
+      "%</b>, <b>" + byRate[byRate.length-1].d + "</b> worst at <b class=\"m\">" + (byRate[byRate.length-1].a.rate*100).toFixed(1) + "%</b>.");
+  }
+
+  // hour of day
+  const hourly = {};
+  leads.forEach(L => { if(!L.time) return; const h = parseInt(L.time.slice(0,2),10); if(isNaN(h)) return; (hourly[h] = hourly[h] || []).push(L); });
+  const hrs = Object.entries(hourly).map(([h,ls]) => ({ h:+h, a:agg(ls) })).filter(x => x.a.decided >= 20);
+  if(hrs.length >= 4){
+    const worst = [...hrs].sort((x,y) => x.a.rate - y.a.rate)[0];
+    const fmtH = h => (h%12===0?12:h%12) + (h<12?"am":"pm");
+    add("s", "By hour, the <b>" + fmtH(worst.h) + "–" + fmtH((worst.h+1)%24) + "</b> window is the weakest at <b class=\"m\">" +
+      (worst.a.rate*100).toFixed(1) + "%</b> across <span class=\"m\">" + nf(worst.a.total) + "</span> leads — a staffing-coverage signal.");
+  }
+
+  // customer type
+  const nw = agg(leads.filter(L => L.custType === "New")), ex = agg(leads.filter(L => L.custType === "Existing"));
+  if(nw.decided >= 10 && ex.decided >= 5)
+    add("p", "<b class=\"m\">" + nf(nw.total) + "</b> leads were new customers (booking <b class=\"m\">" + (nw.rate*100).toFixed(1) +
+      "%</b>) and <b class=\"m\">" + nf(ex.total) + "</b> were existing customers (booking <b class=\"m\">" + (ex.rate*100).toFixed(1) +
+      "%</b>). Existing-customer calls arriving through LSA are paid leads for work you would have won anyway.");
+
+  // job types
+  const jobs = [...groupBy(leads.filter(L => L.jobType), L => L.jobType).entries()]
+    .map(([j,ls]) => ({ j, a:agg(ls) })).filter(x => x.a.decided >= 8).sort((x,y) => y.a.total - x.a.total).slice(0,8);
+  if(jobs.length >= 3){
+    const weak = [...jobs].sort((x,y) => x.a.rate - y.a.rate)[0];
+    add("o", "Top job types by volume: " + jobs.slice(0,3).map(j => "<b>" + esc(j.j) + "</b> (" + nf(j.a.total) + ")").join(", ") +
+      ". The weakest converter among the majors is <b>" + esc(weak.j) + "</b> at <b class=\"m\">" + (weak.a.rate*100).toFixed(1) +
+      "%</b> over " + nf(weak.a.total) + " leads.");
+  }
+
+  $("insList").innerHTML = out.map(o =>
+    '<div class="ins"><div class="ins-ic ' + o.ic + '">' +
+      ({g:"↑",r:"↓",o:"!",p:"◆",s:"•"}[o.ic] || "•") + '</div><div class="ins-txt">' + o.t + '</div></div>').join("");
+}
+
+/* ============================================================
+   LEAD DETAIL TABLE
+   ============================================================ */
+const COLS = [
+  { k:"date",     t:"Date" },
+  { k:"time",     t:"Time" },
+  { k:"locName",  t:"Location" },
+  { k:"leadType", t:"Type" },
+  { k:"status",   t:"Status" },
+  { k:"reason",   t:"Reason not booked" },
+  { k:"caller",   t:"Caller" },
+  { k:"phone",    t:"Phone" },
+  { k:"jobType",  t:"Job type" },
+  { k:"durationSec", t:"Duration" },
+  { k:"answerSec",   t:"Answer (s)" },
+  { k:"dispatch", t:"Dispatch" },
+  { k:"custType", t:"Customer" },
+  { k:"bookedDay",t:"Booked day" },
+  { k:"notes",    t:"Notes" }
+];
+
+function tableRows(leads){
+  const q = ($("tblSearch").value || "").trim().toLowerCase();
+  const st = $("tblStatus").value;
+  let rows = leads.map(L => Object.assign({}, L, {
+    locName: locName(L.loc),
+    status: L.booked === true ? "Booked" : L.booked === false ? "Not booked" : "Unmarked"
+  }));
+  if(state.reasonFilter) rows = rows.filter(r => r.reason === state.reasonFilter);
+  if(st === "booked")    rows = rows.filter(r => r.booked === true);
+  if(st === "notbooked") rows = rows.filter(r => r.booked === false);
+  if(st === "unknown")   rows = rows.filter(r => r.booked == null);
+  if(q) rows = rows.filter(r => [r.caller,r.phone,r.jobType,r.notes,r.dispatch,r.locName,r.reason,r.address,r.leadId]
+                                .some(v => String(v||"").toLowerCase().includes(q)));
+  const { key, dir } = state.sort;
+  rows.sort((x,y) => {
+    let a = x[key], b = y[key];
+    if(key === "date") { a = x.date + " " + (x.time||""); b = y.date + " " + (y.time||""); }
+    if(typeof a === "number" || typeof b === "number") return ((a||0) - (b||0)) * dir;
+    return String(a==null?"":a).localeCompare(String(b==null?"":b)) * dir;
+  });
+  return rows;
+}
+
+const MAX_ROWS = 600;
+function renderTable(leads){
+  const rows = tableRows(leads);
+  $("detailSub").textContent = nf(rows.length) + " leads" + (state.reasonFilter ? " · filtered to “" + state.reasonFilter + "”" : "");
+  let h = '<thead><tr>' + COLS.map(c =>
+    '<th data-k="' + c.k + '">' + c.t + (state.sort.key === c.k ? (state.sort.dir === 1 ? " ▲" : " ▼") : "") + '</th>').join("") + '</tr></thead><tbody>';
+  rows.slice(0, MAX_ROWS).forEach(r => {
+    const badge = r.booked === true ? '<span class="badge b">Booked</span>'
+                : r.booked === false ? '<span class="badge nb">Not booked</span>'
+                : '<span class="badge uk">Unmarked</span>';
+    h += '<tr>' +
+      '<td class="num">' + esc(r.date) + '</td>' +
+      '<td class="num">' + esc(r.time) + '</td>' +
+      '<td>' + esc(r.locName) + '</td>' +
+      '<td><span class="badge t">' + esc(r.leadType) + '</span></td>' +
+      '<td>' + badge + '</td>' +
+      '<td>' + (r.reason ? '<span class="dot-key" style="background:' + REASON_COLORS[r.reason] + ';margin-right:6px"></span>' + esc(r.reason) : '<span style="color:var(--border)">—</span>') + '</td>' +
+      '<td>' + esc(r.caller) + '</td>' +
+      '<td class="num">' + esc(r.phone) + '</td>' +
+      '<td>' + esc(r.jobType) + '</td>' +
+      '<td class="num">' + (r.leadType === "Phone" ? dur(r.durationSec) : "—") + '</td>' +
+      '<td class="num">' + (r.answerSec == null ? "—" : r.answerSec) + '</td>' +
+      '<td>' + esc(r.dispatch) + '</td>' +
+      '<td>' + esc(r.custType) + '</td>' +
+      '<td>' + esc(r.bookedDay) + '</td>' +
+      '<td class="notes">' + esc(String(r.notes||"").slice(0,300)) + (String(r.notes||"").length > 300 ? "…" : "") + '</td>' +
+    '</tr>';
+  });
+  h += '</tbody>';
+  $("detailTable").innerHTML = h;
+  $("detailTable").querySelectorAll("thead th").forEach(th => {
+    th.onclick = () => {
+      const k = th.dataset.k;
+      state.sort = { key:k, dir: state.sort.key === k ? -state.sort.dir : (k === "date" ? -1 : 1) };
+      renderTable(leads);
+    };
+  });
+  $("detailNote").innerHTML = rows.length > MAX_ROWS
+    ? "Showing the first " + nf(MAX_ROWS) + " of " + nf(rows.length) + " rows — export the CSV for the full set."
+    : (state.reasonFilter ? 'Click the same reason again in the panel above to clear this filter.' : "");
+}
+
+/* ============================================================
+   EXPORT
+   ============================================================ */
+function periodSlug(){
+  const m = [...state.selMonths].sort();
+  return !m.length ? "no-months" : m.length <= 2 ? m.join("_") : m[0] + "_to_" + m[m.length-1];
+}
+const csvCell = v => { const s = String(v==null?"":v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s; };
+function download(name, text){
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob(["﻿"+text], { type:"text/csv;charset=utf-8" }));
+  a.download = name; document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 400);
+}
+function exportLeads(){
+  const rows = tableRows(selectedLeads());
+  const head = ["Date","Time","Location","Lead Type","Status","Reason Not Booked","Caller","Phone","Job Type",
+                "Duration (s)","Answer (s)","Dispatch","Customer Type","Booked Day","Address","Lead ID","Notes"];
+  const body = rows.map(r => [r.date,r.time,r.locName,r.leadType,r.status,r.reason||"",r.caller,r.phone,r.jobType,
+                              r.durationSec,r.answerSec==null?"":r.answerSec,r.dispatch,r.custType,r.bookedDay,r.address,r.leadId,r.notes]);
+  download("LSA_leads_" + periodSlug() + ".csv",
+           [head, ...body].map(r => r.map(csvCell).join(",")).join("\n"));
+}
+function exportSummary(){
+  const leads = selectedLeads(), months = [...state.selMonths].sort();
+  const out = [["Location","Month","Total Leads","Booked","Not Booked","Unmarked","Booking Rate %"]];
+  activeLocs().forEach(l => months.forEach(m => {
+    const a = agg(leads.filter(L => L.loc === l.id && L.month === m));
+    if(a.total) out.push([l.name, monthLong(m), a.total, a.booked, a.notBooked, a.unknown, a.rate==null?"":(a.rate*100).toFixed(1)]);
+  }));
+  out.push([]);
+  out.push(["Reason not booked","Count","Share of not-booked %"]);
+  const nb = leads.filter(L => L.booked === false), counts = {};
+  nb.forEach(L => counts[L.reason] = (counts[L.reason]||0)+1);
+  Object.entries(counts).sort((a,b) => b[1]-a[1]).forEach(([r,n]) => out.push([r, n, pct(n, nb.length)]));
+  download("LSA_summary_" + periodSlug() + ".csv", out.map(r => r.map(csvCell).join(",")).join("\n"));
+}
+
+/* ============================================================
+   SAMPLE DATA — lets the dashboard be explored without a report.
+   Clearly labelled so it is never mistaken for a client's numbers.
+   ============================================================ */
+function loadDemo(){
+  const seedNames = ["SAMPLE — Northside Plumbing","SAMPLE — Valley HVAC","SAMPLE — Coastal Electric"];
+  const jobs = ["Unclog drain","Repair toilet","Repair water heater","Find & repair leak","Repair sewer","Install water heater","Other"];
+  const dispatchers = ["Ann","Victoria","Janel","Rachelle"];
+  let seed = 7;
+  const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+  const pick = arr => arr[Math.floor(rnd()*arr.length)];
+  const now = new Date();
+  const months = [];
+  for(let i=7; i>=0; i--){ const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+    months.push(d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")); }
+
+  state.locs = seedNames.map((name,li) => {
+    const leads = [];
+    months.forEach((m,mi) => {
+      // one location gets a deliberate volume + booking-rate shock in the 6th month
+      const shock = (li === 1 && mi === 5);
+      const base = 40 + li*22 + Math.round(rnd()*18) + mi*3;
+      const n = shock ? Math.round(base*1.9) : base;
+      const bookProb = (li === 0 ? .62 : li === 1 ? .52 : .46) + (mi*.006) - (shock ? .19 : 0);
+      const [yy,mm] = m.split("-").map(Number);
+      const dim = new Date(yy, mm, 0).getDate();
+      for(let k=0; k<n; k++){
+        const day = 1 + Math.floor(rnd()*dim);
+        const iso = m + "-" + String(day).padStart(2,"0");
+        const tr = rnd();
+        const leadType = tr < .8 ? "Phone" : tr < .93 ? "Message" : "Booking";
+        const hour = 7 + Math.floor(rnd()*12);
+        const booked = rnd() < (leadType === "Message" ? bookProb*.55 : leadType === "Booking" ? .95 : bookProb);
+        const dr = rnd();
+        const durationSec = leadType !== "Phone" ? 0 : (dr < (shock ? .17 : .07) ? 0 : dr < .16 ? Math.floor(rnd()*29) : 60 + Math.floor(rnd()*380));
+        const notePool = booked ? ["dispatch offered an appointment | caller agreed | email provided"]
+          : ["caller asked for pricing and will call around | did not agree",
+             "dispatch advised no availability today, soonest is tomorrow | caller wanted it today",
+             "caller asked if they do backflow testing | dispatch said no, out of their scope of work",
+             "caller is outside of the service area, too far",
+             "caller will call back after they discuss with their spouse",
+             "caller is going through their home warranty company",
+             "not the h/o, renter calling on behalf of the landlord",
+             "caller sent a message | no reply from the caller after the company responded"];
+        const L = {
+          loc:0, date:iso, month:m, weekday:weekdayOf(iso),
+          time:String(hour).padStart(2,"0")+":"+String(Math.floor(rnd()*60)).padStart(2,"0"),
+          leadType, vertical:"Plumber",
+          dispatch: leadType === "Phone" ? pick(dispatchers) : leadType,
+          durationSec, phone:"(480) " + (200+Math.floor(rnd()*799)) + "-" + String(1000+Math.floor(rnd()*8999)),
+          caller:"Sample Caller " + (k+1), booked,
+          bookedDay: booked ? weekdayOf(iso) : (rnd() < .05 ? "Canceled" : "N/A"),
+          address:"", jobType:pick(jobs),
+          custType: rnd() < .12 ? "Existing" : "New",
+          searchIntent:"Category", googleST:"", leadId:"S"+li+m.replace("-","")+k,
+          answerSec: leadType === "Phone" ? Math.floor(rnd()*40) : null,
+          notes: pick(notePool), charged:null
+        };
+        L.reason = booked ? null : classifyReason(L);
+        leads.push(L);
+      }
+    });
+    const locMonths = [...new Set(leads.map(L => L.month))].sort();
+    return { rowIdx:li, sheetId:null, gid:null, name, autoName:name, leads, months:locMonths,
+             tabNames:{}, fetched:new Set(locMonths), error:null };
+  });
+  state.locs.forEach(l => { l.id = nextLocId++; l.leads.forEach(L => L.loc = l.id); });
+  state.selMonths = new Set(); state.hiddenTypes = new Set();
+  afterLoadChange();
+}
+
+/* ============================================================
+   WIRING
+   ============================================================ */
+function refresh(){
+  if(!state.locs.some(l => l.months.length)) return;
+  const leads = selectedLeads();
+  renderKPIs(leads);
+  renderAnomalies(leads);
+  renderInsights(leads);
+  renderByLoc(leads);
+  renderByType(leads);
+  renderTrend(leads);
+  renderReasons(leads);
+  renderMatrix(leads);
+  renderTable(leads);
+}
+
+$("btnClear").onclick = () => {
+  if((state.locs.length || state.rows.some(r => r.url)) && !confirm("Clear all links and loaded data?")) return;
+  state.locs = []; state.rows = Array.from({length:MAX_LOCS}, () => ({ name:"", url:"" }));
+  state.selMonths = new Set(); state.selLocs = new Set(); state.hiddenTypes = new Set();
+  state.reasonFilter = null; saveLinks(); afterLoadChange();
+};
+$("btnDemo").onclick = () => { loadDemo(); showDash(); };
+$("btnLoadAll").onclick = loadAll;
+$("btnBack").onclick = showSetup;
+$("btnAnomAll").onclick = () => { state.anomExpanded = !state.anomExpanded; refresh(); };
+$("btnExportLeads").onclick = exportLeads;
+$("btnExportSummary").onclick = exportSummary;
+$("tblSearch").oninput  = () => renderTable(selectedLeads());
+$("tblStatus").onchange = () => renderTable(selectedLeads());
+
+// Pasting a block of links (one per line) into any row spreads them across the rows.
+$("linkRows").addEventListener("paste", e => {
+  const txt = (e.clipboardData || window.clipboardData).getData("text") || "";
+  const urls = txt.split(/[\r\n\t]+/).map(x => x.trim()).filter(x => sheetIdFromUrl(x));
+  if(urls.length < 2) return;                       // a single link pastes normally
+  e.preventDefault();
+  const row = e.target.closest(".linkrow");
+  const start = row ? [...$("linkRows").children].indexOf(row) : 0;
+  urls.slice(0, MAX_LOCS - start).forEach((u,k) => { state.rows[start+k].url = u; });
+  saveLinks(); renderRows();
+});
+
+/** Our own filename, when the URL actually has one — a data: URL's "pathname"
+    is the whole encoded document, so anything unfilename-shaped is discarded. */
+function selfFileName(){
+  const last = (location.pathname || "").split("/").pop() || "";
+  return /^[\w.-]{1,80}\.html?$/i.test(last) ? last : "lsa-multi-location-dashboard.html";
+}
+
+// Surface the file:// problem before the user pastes anything and waits for a failure.
+if(OPAQUE_ORIGIN){
+  const w = $("originWarn");
+  w.className = "warnbox";
+  w.innerHTML =
+    '<h4>This page needs to be served over http:// &mdash; it can\'t load sheets like this</h4>' +
+    'It is open as a local file, so the browser gives it an <b>opaque origin</b> and Google refuses every ' +
+    'request from it. Nothing is wrong with your links or your sharing settings. Two ways to fix it:' +
+    '<ol>' +
+      '<li>Open the published copy on your dashboard host (same as the CallRail dashboard), or</li>' +
+      '<li>Serve this folder locally &mdash; run <code>python3 -m http.server 7788</code> in the folder ' +
+        'containing this file, then open <code>http://localhost:7788/' +
+        esc(location.pathname.split("/").pop() || "lsa-multi-location-dashboard.html") + '</code></li>' +
+    '</ol>';
+  $("btnLoadAll").disabled = true;
+  $("btnLoadAll").title = "Unavailable while the page is running from a local file";
+}
+
+wireRangePicker();
+
+const saved = loadLinks();
+if(saved) saved.slice(0,MAX_LOCS).forEach((r,i) => { state.rows[i] = { name:r.name||"", url:r.url||"" }; });
+renderRows();
+showSetup();
+</script>
+</body>
+</html>
