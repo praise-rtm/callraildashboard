@@ -144,6 +144,21 @@ body{font-family:'Montserrat',sans-serif;background:var(--bg);color:var(--text);
 .lt-foot .v{color:var(--text)}
 .lt-missing{font-size:10.5px;color:var(--accent-dark);font-weight:700;margin-top:7px}
 
+/* SPARKLINE HOVER */
+.lt-hit{cursor:pointer}
+.lt-bar{transition:fill .1s}
+.lt-bar.hot{fill:var(--primary-mid) !important}
+.lt-tip{position:fixed;z-index:900;pointer-events:none;background:var(--navy);color:#fff;border-radius:9px;
+  padding:9px 12px;box-shadow:0 6px 22px rgba(4,34,50,.32);font-size:11.5px;line-height:1.5;max-width:250px}
+.lt-tip .ltt-loc{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;
+  color:rgba(255,255,255,.55);margin-bottom:3px}
+.lt-tip .ltt-m{font-size:12px;font-weight:800;margin-bottom:5px}
+.lt-tip .ltt-n{font-size:19px;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums}
+.lt-tip .ltt-n span{font-size:10.5px;font-weight:600;color:rgba(255,255,255,.6)}
+.lt-tip .ltt-s{margin-top:6px;font-weight:600;color:rgba(255,255,255,.85);display:flex;align-items:center;flex-wrap:wrap}
+.lt-tip .ltt-s i{width:8px;height:8px;border-radius:2px;display:inline-block;margin-right:5px;flex:none}
+.lt-tip .ltt-r{margin-top:5px;font-weight:700;color:var(--accent-light)}
+
 /* TWO-COLUMN DASHBOARD LAYOUT */
 .layout{display:grid;grid-template-columns:252px minmax(0,1fr);gap:16px;align-items:start}
 .main{min-width:0}
@@ -1547,11 +1562,12 @@ function locTrendStats(loc, cur, win){
   const count = m => loc.leads.reduce((n,L) => n + (L.month === m && state.selTypes.has(L.leadType) ? 1 : 0), 0);
   // A month the location has no tab for is absent, not zero — skip it from the
   // baseline. A tab that exists but is empty really is a zero and stays in.
-  const series = win.map(m => ({
-    m,
-    has: loc.months.includes(m) && loc.fetched.has(m),
-    n: count(m)
-  }));
+  const series = win.map(m => {
+    const ls = loc.leads.filter(L => L.month === m && state.selTypes.has(L.leadType));
+    const a = agg(ls);
+    return { m, has: loc.months.includes(m) && loc.fetched.has(m),
+             n: a.total, booked: a.booked, notBooked: a.notBooked, rate: a.rate };
+  });
   const base = series.slice(0, -1).filter(x => x.has);
   const curX = series[series.length - 1];
   const avg = base.length ? mean(base.map(x => x.n)) : null;
@@ -1566,8 +1582,10 @@ function locTrendStats(loc, cur, win){
   };
 }
 
-/** Seven bars, the current month accented. */
-function sparkBars(series){
+/** Seven bars, the current month accented. Each column carries an invisible
+    full-height hit rect so the hover target is the whole column, not the few
+    pixels a low month happens to draw. */
+function sparkBars(series, locName){
   const W = 210, H = 40, gap = 3;
   const bw = (W - gap*(series.length-1)) / series.length;
   const max = Math.max(1, ...series.map(x => x.n));
@@ -1577,18 +1595,81 @@ function sparkBars(series){
     const h = x.has ? Math.max(2, x.n / max * H) : 0;
     const px = i * (bw + gap);
     if(!x.has){
-      s += '<rect x="'+px+'" y="'+(H-3)+'" width="'+bw+'" height="3" fill="#dde3ed" rx="1"><title>'
-         + monthLabel(x.m) + ' — not downloaded</title></rect>';
+      s += '<rect class="lt-bar" data-i="'+i+'" x="'+px+'" y="'+(H-3)+'" width="'+bw+'" height="3" fill="#dde3ed" rx="1"/>';
     } else {
       const last = i === series.length - 1;
-      s += '<rect x="'+px+'" y="'+(H-h)+'" width="'+bw+'" height="'+h+'" rx="2" fill="'
-         + (last ? "#f99e23" : "#9db8cc") + '"><title>' + monthLabel(x.m) + ' — ' + x.n + ' leads</title></rect>';
+      s += '<rect class="lt-bar" data-i="'+i+'" x="'+px+'" y="'+(H-h)+'" width="'+bw+'" height="'+h+'" rx="2" fill="'
+         + (last ? "#f99e23" : "#9db8cc") + '"/>';
     }
   });
   s += '<text x="0" y="'+(H+11)+'" font-size="8.5" fill="#64748b" font-weight="700">' + monthLabel(series[0].m) + '</text>';
   s += '<text x="'+W+'" y="'+(H+11)+'" font-size="8.5" fill="#64748b" font-weight="700" text-anchor="end">'
      + monthLabel(series[series.length-1].m) + '</text>';
+  // hit layer last so it sits on top of the bars
+  series.forEach((x,i) => {
+    s += '<rect class="lt-hit" data-i="'+i+'"'
+       + ' data-loc="' + esc(locName) + '" data-m="' + x.m + '" data-has="' + (x.has?1:0) + '"'
+       + ' data-n="' + x.n + '" data-b="' + x.booked + '" data-nb="' + x.notBooked + '"'
+       + ' data-rate="' + (x.rate == null ? "" : (x.rate*100).toFixed(1)) + '"'
+       + ' x="' + (i * (bw + gap) - gap/2) + '" y="0" width="' + (bw + gap) + '" height="' + H + '"'
+       + ' fill="transparent"/>';
+  });
   return s + '</svg>';
+}
+
+/* Hover read-out for the sparkline. Delegated from the container so it keeps
+   working across the re-renders that follow every filter change. */
+let ltTip = null;
+function trendTip(){
+  if(!ltTip){
+    ltTip = el("div","lt-tip");
+    ltTip.style.display = "none";
+    document.body.appendChild(ltTip);
+  }
+  return ltTip;
+}
+function placeTip(e){
+  const t = trendTip(), pad = 14;
+  const r = t.getBoundingClientRect();
+  let x = e.clientX + pad, y = e.clientY - r.height - pad;
+  if(x + r.width > window.innerWidth - 8) x = e.clientX - r.width - pad;
+  if(y < 8) y = e.clientY + pad;                                   // flip below the cursor
+  if(y + r.height > window.innerHeight - 8)                        // and keep it on screen
+    y = Math.max(8, window.innerHeight - r.height - 8);
+  t.style.left = Math.max(8, x) + "px";
+  t.style.top  = y + "px";
+}
+function wireTrendTooltip(){
+  const box = $("locTrend"), t = trendTip();
+  let hot = null;
+  const clear = () => { if(hot){ hot.classList.remove("hot"); hot = null; } t.style.display = "none"; };
+  box.addEventListener("mouseover", e => {
+    const h = e.target.closest && e.target.closest(".lt-hit");
+    if(!h) return;
+    if(hot) hot.classList.remove("hot");
+    hot = h.parentNode.querySelector('.lt-bar[data-i="' + h.dataset.i + '"]');
+    if(hot) hot.classList.add("hot");
+    const has = h.dataset.has === "1";
+    t.innerHTML =
+      '<div class="ltt-loc">' + esc(h.dataset.loc) + '</div>' +
+      '<div class="ltt-m">' + monthLong(h.dataset.m) + '</div>' +
+      (has
+        ? '<div class="ltt-n">' + nf(+h.dataset.n) + ' <span>lead' + (+h.dataset.n === 1 ? "" : "s") + '</span></div>' +
+          (+h.dataset.n
+            ? '<div class="ltt-s"><i style="background:var(--green)"></i>' + nf(+h.dataset.b) + ' booked' +
+              '<i style="background:var(--red);margin-left:9px"></i>' + nf(+h.dataset.nb) + ' not booked</div>' +
+              (h.dataset.rate ? '<div class="ltt-r">' + h.dataset.rate + '% booking rate</div>' : '')
+            : '<div class="ltt-r">This month\'s tab is empty</div>')
+        : '<div class="ltt-r">Not downloaded</div>');
+    t.style.display = "block";
+    placeTip(e);
+  });
+  box.addEventListener("mousemove", e => { if(t.style.display === "block") placeTip(e); });
+  box.addEventListener("mouseout", e => {
+    const h = e.target.closest && e.target.closest(".lt-hit");
+    if(h && !(e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest(".lt-hit"))) clear();
+  });
+  box.addEventListener("mouseleave", clear);
 }
 
 function renderLocTrend(){
@@ -1631,7 +1712,7 @@ function renderLocTrend(){
       '<div class="lt-vs"><b>' + (t.cur == null ? "&mdash;" : nf(t.cur)) + '</b> leads in ' + monthLabel(cur) +
         ' vs. <b>' + (t.avg == null ? "&mdash;" : t.avg.toFixed(0)) + '</b> avg' +
         (t.base.length ? ' over ' + t.base.length + ' month' + (t.base.length===1?"":"s") : '') + '</div>' +
-      '<div class="lt-spark">' + sparkBars(t.series) + '</div>' +
+      '<div class="lt-spark">' + sparkBars(t.series, l.name) + '</div>' +
       '<div class="lt-foot"><span>Booking rate</span><span class="v">' +
         (t.curRate == null ? "&mdash;" : (t.curRate*100).toFixed(1) + "%") +
         (ratePt == null ? "" : ' <span style="color:' + (ratePt >= 0 ? "var(--green-dark)" : "var(--red)") + '">' +
@@ -2333,6 +2414,7 @@ wireRangePicker();
 
 const saved = loadLinks();
 if(saved) saved.slice(0,MAX_LOCS).forEach((r,i) => { state.rows[i] = { name:r.name||"", url:r.url||"" }; });
+wireTrendTooltip();
 renderRows();
 showSetup();
 </script>
