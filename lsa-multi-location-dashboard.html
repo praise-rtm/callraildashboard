@@ -566,6 +566,12 @@ svg text{font-family:'Montserrat',sans-serif}
     <div class="card">
       <h2><span>Month &times; location breakdown</span><span class="sub" id="matrixSub"></span></h2>
       <div class="tbl-wrap" style="max-height:none"><table class="mtx" id="matrix"></table></div>
+      <div class="note">Each cell shows that month's <b>lead count</b> and, in the pill beneath it, the
+        <b>booking rate</b> &mdash; booked &divide; (booked + not booked). Colour bands:
+        <span class="rate-pill" style="background:#dcfce7;color:var(--green-dark)">60%+</span>
+        <span class="rate-pill" style="background:#fef3c7;color:var(--accent-dark)">45&ndash;59%</span>
+        <span class="rate-pill" style="background:#fee2e2;color:#b91c1c">under 45%</span>
+        Hover a cell for the booked / not-booked split.</div>
     </div>
 
     <!-- Detail table -->
@@ -1982,8 +1988,8 @@ function renderMatrix(){
   locs.forEach(l => l.leads.forEach(L => { if(state.selTypes.has(L.leadType)) pool.push(L); }));
   const cell = ls => agg(ls);
 
-  $("matrixSub").textContent = months.length + " months · " + monthLabel(months[0])
-    + " – " + monthLabel(months[months.length-1]) + " · selected months highlighted";
+  $("matrixSub").textContent = "leads and booking rate per month · " + months.length + " months · "
+    + monthLabel(months[0]) + " – " + monthLabel(months[months.length-1]) + " · selected months highlighted";
 
   let t = '<thead><tr><th>Location</th>'
     + months.map(m => '<th' + (state.selMonths.has(m) ? ' class="sel"' : '') + '>' + esc(monthLabel(m)) + '</th>').join("")
@@ -1994,7 +2000,11 @@ function renderMatrix(){
     months.forEach(m => {
       const has = l.fetched.has(m);
       const a = cell(pool.filter(L => L.loc === l.id && L.month === m));
-      t += '<td' + (state.selMonths.has(m) ? ' class="sel"' : '') + '>' + (
+      const tip = has && a.total
+        ? l.name + " · " + monthLabel(m) + " — " + nf(a.total) + " leads, " + nf(a.booked) + " booked, "
+          + nf(a.notBooked) + " not booked" + (a.rate==null ? "" : " (" + (a.rate*100).toFixed(1) + "% booking rate)")
+        : has ? l.name + " · " + monthLabel(m) + " — no leads" : "Not downloaded yet";
+      t += '<td title="' + esc(tip) + '"' + (state.selMonths.has(m) ? ' class="sel"' : '') + '>' + (
         !has ? '<span style="color:var(--border)" title="Not downloaded yet">&middot;</span>'
         : a.total ? nf(a.total) + '<br><span class="rate-pill" style="background:' + rateBg(a.rate) + ';color:' + rateColor(a.rate) + '">'
             + (a.rate==null?"—":(a.rate*100).toFixed(0)+"%") + '</span>'
