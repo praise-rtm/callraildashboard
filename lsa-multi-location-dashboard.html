@@ -125,6 +125,25 @@ body{font-family:'Montserrat',sans-serif;background:var(--bg);color:var(--text);
   background:var(--surface);color:var(--text-muted);cursor:pointer}
 .mini-actions button:hover{border-color:var(--primary-mid);color:var(--primary)}
 
+/* PER-LOCATION TREND CARDS */
+.loctrend{display:grid;grid-template-columns:repeat(auto-fit,minmax(238px,1fr));gap:12px}
+.lt{border:1px solid var(--border);border-radius:11px;padding:13px 14px;background:var(--surface2);
+  border-top:3px solid var(--slate)}
+.lt.up{border-top-color:var(--green)} .lt.down{border-top-color:var(--red)} .lt.flat{border-top-color:var(--slate)}
+.lt-name{font-size:11.5px;font-weight:800;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  margin-bottom:8px}
+.lt-delta{display:flex;align-items:baseline;gap:8px;margin-bottom:3px}
+.lt-pct{font-size:26px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+.lt.up .lt-pct{color:var(--green-dark)} .lt.down .lt-pct{color:var(--red)} .lt.flat .lt-pct{color:var(--slate)}
+.lt-word{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted)}
+.lt-vs{font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:10px;line-height:1.5}
+.lt-vs b{color:var(--text);font-variant-numeric:tabular-nums}
+.lt-spark{margin-bottom:8px}
+.lt-foot{display:flex;justify-content:space-between;font-size:10.5px;font-weight:700;color:var(--text-muted);
+  border-top:1px solid var(--border);padding-top:8px;font-variant-numeric:tabular-nums}
+.lt-foot .v{color:var(--text)}
+.lt-missing{font-size:10.5px;color:var(--accent-dark);font-weight:700;margin-top:7px}
+
 /* TWO-COLUMN DASHBOARD LAYOUT */
 .layout{display:grid;grid-template-columns:252px minmax(0,1fr);gap:16px;align-items:start}
 .main{min-width:0}
@@ -423,6 +442,15 @@ svg text{font-family:'Montserrat',sans-serif}
   <div id="results">
 
     <div class="kpis" id="kpis"></div>
+
+    <!-- Per-location: current month vs. its own 6-month baseline -->
+    <div class="card" id="trendCard">
+      <h2><span>Lead trend by location</span><span class="sub" id="locTrendSub"></span>
+        <span class="spacer"></span>
+        <button class="btn btn-sm hidden" id="btnTrendHistory">Load 6-month history</button>
+      </h2>
+      <div class="loctrend" id="locTrend"></div>
+    </div>
 
     <!-- Anomalies -->
     <div class="card">
@@ -1469,6 +1497,128 @@ function renderByType(leads){
 }
 
 /* ============================================================
+   PER-LOCATION TREND — the current month against that location's
+   own preceding six months. Deliberately independent of the month
+   selection: it always answers "how is this month tracking?", and
+   pulls whatever months it needs on request.
+   ============================================================ */
+const TREND_BASELINE = 6;
+
+/** The month this comparison treats as "current": the newest month any loaded
+    location has a tab for that isn't in the future. */
+function trendCurrentMonth(){
+  const all = [...new Set(activeLocs().flatMap(l => l.months))].filter(m => m <= nowKey()).sort();
+  return all.length ? all[all.length-1] : null;
+}
+/** Current month plus the six before it, as a plain calendar run. */
+function trendWindow(cur){
+  return cur ? monthsBetween(shiftMonth(cur, -TREND_BASELINE), cur) : [];
+}
+/** (location, month) pairs inside the window that exist but aren't downloaded. */
+function trendMissing(){
+  const win = trendWindow(trendCurrentMonth()), out = [];
+  activeLocs().forEach(l => win.forEach(m => {
+    if(l.months.includes(m) && !l.fetched.has(m)) out.push(m);
+  }));
+  return [...new Set(out)];
+}
+
+function locTrendStats(loc, cur, win){
+  const count = m => loc.leads.reduce((n,L) => n + (L.month === m && state.selTypes.has(L.leadType) ? 1 : 0), 0);
+  // A month the location has no tab for is absent, not zero — skip it from the
+  // baseline. A tab that exists but is empty really is a zero and stays in.
+  const series = win.map(m => ({
+    m,
+    has: loc.months.includes(m) && loc.fetched.has(m),
+    n: count(m)
+  }));
+  const base = series.slice(0, -1).filter(x => x.has);
+  const curX = series[series.length - 1];
+  const avg = base.length ? mean(base.map(x => x.n)) : null;
+  const pct = (avg && curX.has) ? (curX.n - avg) / avg * 100 : null;
+  const rateOf = ms => { const a = agg(loc.leads.filter(L => ms.includes(L.month) && state.selTypes.has(L.leadType))); return a.rate; };
+  return {
+    series, base, avg, pct,
+    cur: curX.has ? curX.n : null,
+    curRate:  curX.has ? rateOf([cur]) : null,
+    baseRate: base.length ? rateOf(base.map(x => x.m)) : null,
+    missing: series.filter(x => loc.months.includes(x.m) && !loc.fetched.has(x.m)).length
+  };
+}
+
+/** Seven bars, the current month accented. */
+function sparkBars(series){
+  const W = 210, H = 40, gap = 3;
+  const bw = (W - gap*(series.length-1)) / series.length;
+  const max = Math.max(1, ...series.map(x => x.n));
+  let s = '<svg viewBox="0 0 ' + W + ' ' + (H+13) + '" preserveAspectRatio="none" '
+        + 'style="display:block;width:100%;height:' + (H+13) + 'px">';
+  series.forEach((x,i) => {
+    const h = x.has ? Math.max(2, x.n / max * H) : 0;
+    const px = i * (bw + gap);
+    if(!x.has){
+      s += '<rect x="'+px+'" y="'+(H-3)+'" width="'+bw+'" height="3" fill="#dde3ed" rx="1"><title>'
+         + monthLabel(x.m) + ' — not downloaded</title></rect>';
+    } else {
+      const last = i === series.length - 1;
+      s += '<rect x="'+px+'" y="'+(H-h)+'" width="'+bw+'" height="'+h+'" rx="2" fill="'
+         + (last ? "#f99e23" : "#9db8cc") + '"><title>' + monthLabel(x.m) + ' — ' + x.n + ' leads</title></rect>';
+    }
+  });
+  s += '<text x="0" y="'+(H+11)+'" font-size="8.5" fill="#64748b" font-weight="700">' + monthLabel(series[0].m) + '</text>';
+  s += '<text x="'+W+'" y="'+(H+11)+'" font-size="8.5" fill="#64748b" font-weight="700" text-anchor="end">'
+     + monthLabel(series[series.length-1].m) + '</text>';
+  return s + '</svg>';
+}
+
+function renderLocTrend(){
+  const cur = trendCurrentMonth();
+  const box = $("locTrend");
+  const locs = activeLocs();
+  if(!cur || !locs.length){
+    $("locTrendSub").textContent = "";
+    box.innerHTML = '<div class="empty"><p>No locations selected.</p></div>';
+    $("btnTrendHistory").classList.add("hidden");
+    return;
+  }
+  const win = trendWindow(cur);
+  $("locTrendSub").textContent = monthLong(cur) + " vs. the average of the " + TREND_BASELINE
+    + " months before it (" + monthLabel(win[0]) + " – " + monthLabel(win[win.length-2]) + ")";
+
+  const missing = trendMissing();
+  $("btnTrendHistory").classList.toggle("hidden", !missing.length);
+  if(missing.length)
+    $("btnTrendHistory").textContent = "Load " + missing.length + " missing month"
+      + (missing.length===1?"":"s") + " of history";
+
+  box.innerHTML = locs.map(l => {
+    const t = locTrendStats(l, cur, win);
+    const dir = t.pct == null ? "flat" : t.pct >= 1 ? "up" : t.pct <= -1 ? "down" : "flat";
+    const word = t.pct == null ? "no baseline" : dir === "up" ? "increase" : dir === "down" ? "decline" : "flat";
+    const arrow = dir === "up" ? "&#9650;" : dir === "down" ? "&#9660;" : "&#9644;";
+    const ratePt = (t.curRate != null && t.baseRate != null)
+      ? ((t.curRate - t.baseRate) * 100) : null;
+    return '<div class="lt ' + dir + '">' +
+      '<div class="lt-name" title="' + esc(l.name) + '">' + esc(l.name) + '</div>' +
+      '<div class="lt-delta"><span class="lt-pct">' +
+        (t.pct == null ? "&mdash;" : arrow + " " + Math.abs(t.pct).toFixed(1) + "%") +
+      '</span><span class="lt-word">' + word + '</span></div>' +
+      '<div class="lt-vs"><b>' + (t.cur == null ? "&mdash;" : nf(t.cur)) + '</b> leads in ' + monthLabel(cur) +
+        ' vs. <b>' + (t.avg == null ? "&mdash;" : t.avg.toFixed(0)) + '</b> avg' +
+        (t.base.length ? ' over ' + t.base.length + ' month' + (t.base.length===1?"":"s") : '') + '</div>' +
+      '<div class="lt-spark">' + sparkBars(t.series) + '</div>' +
+      '<div class="lt-foot"><span>Booking rate</span><span class="v">' +
+        (t.curRate == null ? "&mdash;" : (t.curRate*100).toFixed(1) + "%") +
+        (ratePt == null ? "" : ' <span style="color:' + (ratePt >= 0 ? "var(--green-dark)" : "var(--red)") + '">' +
+          (ratePt >= 0 ? "+" : "&minus;") + Math.abs(ratePt).toFixed(1) + "pt</span>") +
+      '</span></div>' +
+      (t.missing ? '<div class="lt-missing">' + t.missing + ' month' + (t.missing===1?"":"s") +
+        ' of this window not downloaded</div>' : '') +
+    '</div>';
+  }).join("");
+}
+
+/* ============================================================
    MONTHLY TREND (hand-drawn SVG — stacked bars + booking-rate line)
    ============================================================ */
 function renderTrend(leads){
@@ -2090,6 +2240,7 @@ function refresh(){
   if(!state.locs.some(l => l.months.length)) return;
   const leads = selectedLeads();
   renderKPIs(leads);
+  renderLocTrend();
   renderAnomalies(leads);
   renderInsights(leads);
   renderByLoc(leads);
@@ -2109,6 +2260,14 @@ $("btnClear").onclick = () => {
 $("btnDemo").onclick = () => { loadDemo(); showDash(); };
 $("btnLoadAll").onclick = loadAll;
 $("btnBack").onclick = showSetup;
+$("btnTrendHistory").onclick = async () => {
+  const b = $("btnTrendHistory"), was = b.textContent;
+  b.disabled = true; b.textContent = "Loading…";
+  // Fetch the baseline months without disturbing what the rest of the page shows.
+  await ensureMonths([...new Set([...trendMissing(), ...state.selMonths])]);
+  b.disabled = false; b.textContent = was;
+  renderFilters(); refresh();
+};
 $("btnAnomAll").onclick = () => { state.anomExpanded = !state.anomExpanded; refresh(); };
 $("btnExportLeads").onclick = exportLeads;
 $("btnExportSummary").onclick = exportSummary;
