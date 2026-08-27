@@ -126,7 +126,7 @@ body{font-family:'Montserrat',sans-serif;background:var(--bg);color:var(--text);
 .mini-actions button:hover{border-color:var(--primary-mid);color:var(--primary)}
 
 /* PER-LOCATION TREND CARDS */
-.loctrend{display:grid;grid-template-columns:repeat(auto-fill,minmax(238px,1fr));gap:12px}
+.loctrend{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:12px}
 .lt-axis{display:flex;justify-content:space-between;font-size:9px;font-weight:700;color:var(--text-muted);
   margin-top:3px;letter-spacing:.2px}
 .lt{border:1px solid var(--border);border-radius:11px;padding:13px 14px;background:var(--surface2);
@@ -320,6 +320,9 @@ td.notes{max-width:420px;font-size:11px;color:var(--text-muted)}
 .mtx td{padding:8px 9px;border-bottom:1px solid var(--border);text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
 .mtx td:first-child{text-align:left;font-weight:700}
 .mtx tr.tot td{border-top:2px solid var(--border);border-bottom:none;font-weight:800;background:var(--surface2)}
+.mtx th.sel{background:var(--primary-light);color:var(--primary)}
+.mtx td.sel{background:rgba(214,234,248,.42)}
+.mtx tr.tot td.sel{background:var(--primary-light)}
 .rate-pill{font-weight:800;padding:2px 8px;border-radius:20px;font-size:11px}
 
 .empty{text-align:center;padding:44px 20px;color:var(--text-muted)}
@@ -561,7 +564,7 @@ svg text{font-family:'Montserrat',sans-serif}
 
     <!-- Month x location matrix -->
     <div class="card">
-      <h2><span>Month &times; location breakdown</span><span class="sub">leads, booked, booking rate</span></h2>
+      <h2><span>Month &times; location breakdown</span><span class="sub" id="matrixSub"></span></h2>
       <div class="tbl-wrap" style="max-height:none"><table class="mtx" id="matrix"></table></div>
     </div>
 
@@ -1344,6 +1347,7 @@ async function setMonths(next){
   renderFilters();
   await ensureMonths([...next]);
   renderFilters(); refresh();
+  ensureTrendBaseline();          // top up the trend + matrix context for the new selection
 }
 
 /** Left-hand location panels: name, volume, booking rate and a booked/not-booked
@@ -1572,19 +1576,34 @@ function trendCurrentMonth(){
 function trendWindow(cur){
   return cur ? monthsBetween(shiftMonth(cur, -TREND_BASELINE), cur) : [];
 }
-/** (location, month) jobs inside the window that exist but aren't downloaded. */
+/** Columns for the month x location table: a full year back from the earliest
+    selected month, through to the latest. Selecting Aug 2026 gives Aug 2025 -
+    Aug 2026; selecting Jul-Aug 2026 gives Jul 2025 - Aug 2026. */
+const MATRIX_LOOKBACK = 12;
+function matrixWindow(){
+  const sel = [...state.selMonths].sort();
+  if(!sel.length) return [];
+  const span = monthsBetween(shiftMonth(sel[0], -MATRIX_LOOKBACK), sel[sel.length-1]);
+  const have = new Set(loadedLocs().flatMap(l => l.months));
+  return span.filter(m => have.has(m));          // only months some sheet actually has
+}
+
+/** Every month the page wants in memory beyond the current selection. */
+const contextWindow = () => [...new Set([...trendWindow(trendCurrentMonth()), ...matrixWindow()])];
+
+/** (location, month) jobs inside the context window that exist but aren't downloaded. */
 function trendMissingJobs(){
-  const win = trendWindow(trendCurrentMonth()), out = [];
+  const win = contextWindow(), out = [];
   loadedLocs().forEach(l => win.forEach(m => {
     if(l.months.includes(m) && !l.fetched.has(m)) out.push({ l, m });
   }));
   return out;
 }
 
-/** The six-month read is the point of this card, so it fetches its own history
-    instead of waiting to be asked — the month filter can be one month wide and
-    the comparison still stands up. Runs after the dashboard is already on screen,
-    and never touches the month selection. */
+/** The six-month trend read and the year-long matrix are the point of those
+    panels, so the page fetches their history instead of waiting to be asked —
+    the month filter can be one month wide and both still stand up. Runs after
+    the dashboard is on screen, and never touches the month selection. */
 let trendBusy = false;
 async function ensureTrendBaseline(){
   const jobs = trendMissingJobs();
@@ -1631,7 +1650,7 @@ function sparkBars(series, locName){
   const bw = (W - gap*(series.length-1)) / series.length;
   const max = Math.max(1, ...series.map(x => x.n));
   let s = '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" '
-        + 'style="display:block;width:100%;height:' + H + 'px">';
+        + 'style="display:block;width:100%;height:var(--spark-h,40px)">';
   series.forEach((x,i) => {
     const h = x.has ? Math.max(2, x.n / max * H) : 0;
     const px = i * (bw + gap);
@@ -1732,6 +1751,10 @@ function renderLocTrend(){
   if(missing.length)
     $("btnTrendHistory").textContent = "Retry " + missing.length + " month"
       + (missing.length===1?"":"s") + " of history";
+
+  // Cards share the row via auto-fit; only the sparkline height needs to know
+  // how many there are, so a wide single card is not a thin strip.
+  box.style.setProperty("--spark-h", (locs.length <= 1 ? 96 : locs.length === 2 ? 68 : locs.length === 3 ? 52 : 44) + "px");
 
   box.innerHTML = locs.map(l => {
     const t = locTrendStats(l, cur, win);
@@ -1946,28 +1969,52 @@ function renderReasons(leads){
 /* ============================================================
    MONTH x LOCATION MATRIX
    ============================================================ */
-function renderMatrix(leads){
-  const months = [...state.selMonths].sort();
+function renderMatrix(){
+  const months = matrixWindow();
   const locs = activeLocs();
-  let t = '<thead><tr><th>Location</th>' + months.map(m => '<th>' + esc(monthLabel(m)) + '</th>').join("") + '<th>Period total</th></tr></thead><tbody>';
+  if(!months.length || !locs.length){
+    $("matrix").innerHTML = "";
+    $("matrixSub").textContent = "";
+    return;
+  }
+  // Month-agnostic pool: most of these columns sit outside the current selection.
+  const pool = [];
+  locs.forEach(l => l.leads.forEach(L => { if(state.selTypes.has(L.leadType)) pool.push(L); }));
+  const cell = ls => agg(ls);
+
+  $("matrixSub").textContent = months.length + " months · " + monthLabel(months[0])
+    + " – " + monthLabel(months[months.length-1]) + " · selected months highlighted";
+
+  let t = '<thead><tr><th>Location</th>'
+    + months.map(m => '<th' + (state.selMonths.has(m) ? ' class="sel"' : '') + '>' + esc(monthLabel(m)) + '</th>').join("")
+    + '<th>Selected</th></tr></thead><tbody>';
+
   locs.forEach(l => {
     t += '<tr><td>' + esc(l.name) + '</td>';
     months.forEach(m => {
-      const a = agg(leads.filter(L => L.loc === l.id && L.month === m));
-      t += '<td>' + (a.total
-        ? nf(a.total) + '<br><span class="rate-pill" style="background:' + rateBg(a.rate) + ';color:' + rateColor(a.rate) + '">'
-          + (a.rate==null?"—":(a.rate*100).toFixed(0)+"%") + '</span>'
-        : '<span style="color:var(--border)">—</span>') + '</td>';
+      const has = l.fetched.has(m);
+      const a = cell(pool.filter(L => L.loc === l.id && L.month === m));
+      t += '<td' + (state.selMonths.has(m) ? ' class="sel"' : '') + '>' + (
+        !has ? '<span style="color:var(--border)" title="Not downloaded yet">&middot;</span>'
+        : a.total ? nf(a.total) + '<br><span class="rate-pill" style="background:' + rateBg(a.rate) + ';color:' + rateColor(a.rate) + '">'
+            + (a.rate==null?"—":(a.rate*100).toFixed(0)+"%") + '</span>'
+        : '<span style="color:var(--border)">0</span>') + '</td>';
     });
-    const at = agg(leads.filter(L => L.loc === l.id));
-    t += '<td><b>' + nf(at.total) + '</b><br><span class="rate-pill" style="background:' + rateBg(at.rate) + ';color:' + rateColor(at.rate) + '">'
+    const at = cell(pool.filter(L => L.loc === l.id && state.selMonths.has(L.month)));
+    t += '<td class="sel"><b>' + nf(at.total) + '</b><br><span class="rate-pill" style="background:' + rateBg(at.rate) + ';color:' + rateColor(at.rate) + '">'
        + (at.rate==null?"—":(at.rate*100).toFixed(1)+"%") + '</span></td></tr>';
   });
+
   t += '<tr class="tot"><td>All locations</td>';
-  months.forEach(m => { const a = agg(leads.filter(L => L.month === m));
-    t += '<td>' + nf(a.total) + '<br><span style="color:' + rateColor(a.rate) + '">' + (a.rate==null?"—":(a.rate*100).toFixed(0)+"%") + '</span></td>'; });
-  const ga = agg(leads);
-  t += '<td>' + nf(ga.total) + '<br><span style="color:' + rateColor(ga.rate) + '">' + (ga.rate==null?"—":(ga.rate*100).toFixed(1)+"%") + '</span></td></tr></tbody>';
+  months.forEach(m => {
+    const a = cell(pool.filter(L => L.month === m));
+    const anyHas = locs.some(l => l.fetched.has(m));
+    t += '<td' + (state.selMonths.has(m) ? ' class="sel"' : '') + '>'
+       + (anyHas ? nf(a.total) + '<br><span style="color:' + rateColor(a.rate) + '">' + (a.rate==null?"—":(a.rate*100).toFixed(0)+"%") + '</span>'
+                 : '<span style="color:var(--border)">&middot;</span>') + '</td>';
+  });
+  const ga = cell(pool.filter(L => state.selMonths.has(L.month)));
+  t += '<td class="sel">' + nf(ga.total) + '<br><span style="color:' + rateColor(ga.rate) + '">' + (ga.rate==null?"—":(ga.rate*100).toFixed(1)+"%") + '</span></td></tr></tbody>';
   $("matrix").innerHTML = t;
 }
 
@@ -2475,7 +2522,7 @@ function refresh(){
   renderTrend();
   renderServices(leads);
   renderReasons(leads);
-  renderMatrix(leads);
+  renderMatrix();
   renderTable(leads);
 }
 
