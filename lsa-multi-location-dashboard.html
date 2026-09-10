@@ -660,8 +660,9 @@ const REASON_COLORS = {
 /* Reasons that are a dispatch/answering failure rather than a customer decision —
    these are the ones the client can actually win back. */
 const RECOVERABLE = new Set(["Missed / Not Answered","Under 30 Seconds","Booked Out / No Availability","Customer Will Call Back"]);
-/* Reasons where the lead was never a real job — candidates for a Google credit dispute. */
-const DISPUTABLE  = new Set(["Out of Scope / Service Not Offered","Outside Service Area","Wrong Number",
+/* Reasons where the lead was never a real job — the "Invalid" bucket in the LSA
+   audit tab, and the categories Google will normally credit if disputed. */
+const INVALID     = new Set(["Out of Scope / Service Not Offered","Outside Service Area","Wrong Number",
                              "Spam / Solicitation","Not the Decision Maker","Invalid / Not a Real Lead"]);
 
 /* The dispatch team writes its own tags into CALLERS NAME ("under 30 seconds",
@@ -1958,7 +1959,7 @@ function renderReasons(leads){
 
   $("reasonBars").innerHTML = rows.map(r => {
     const tag = RECOVERABLE.has(r.r) ? ' <span class="badge t" style="background:#fef3c7;color:#b45309">recoverable</span>'
-              : DISPUTABLE.has(r.r)  ? ' <span class="badge t" style="background:#dbeafe;color:#1d4ed8">disputable</span>' : '';
+              : INVALID.has(r.r)     ? ' <span class="badge t" style="background:#dbeafe;color:#1d4ed8">invalid</span>' : '';
     const on = state.reasonFilter === r.r;
     return '<div class="rbar" data-reason="' + esc(r.r) + '" style="' + (on?"background:var(--primary-light)":"") + '">' +
       '<div class="rlbl"><span class="dot-key" style="background:' + REASON_COLORS[r.r] + '"></span>' + esc(r.r) + tag + '</div>' +
@@ -2274,7 +2275,7 @@ function renderInsights(leads){
         "%</span> of all not-booked) failed on answering or availability rather than on the customer's decision. At the current booking rate those are worth roughly <b class=\"m\">" +
         Math.round(recov * (a.rate||0)) + "</b> recoverable jobs.");
 
-    const disp = nb.filter(L => DISPUTABLE.has(L.reason)).length;
+    const disp = nb.filter(L => INVALID.has(L.reason)).length;
     if(disp)
       add("s", "<b class=\"m\">" + nf(disp) + "</b> not-booked leads were out of scope, out of area, wrong-number or solicitation — the categories Google will normally credit if disputed inside the 30-day window.");
   }
