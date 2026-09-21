@@ -331,7 +331,7 @@ tbody tr.rude-row:hover{background:#ffecec}
       <div class="ov-title">Account Overview <span id="ovRangeLbl"></span></div>
       <div style="flex:1"></div>
       <div class="msel" id="ovCompanyMsel"><button type="button" class="msel-btn">All companies</button><div class="msel-panel" hidden></div></div>
-      <select class="tsel" id="ovSource"><option value="">All Source</option></select>
+      <div class="msel" id="ovSourceMsel"><button type="button" class="msel-btn">All Source</button><div class="msel-panel" hidden></div></div>
       <select class="tsel" id="ovDateRange">
         <option value="">All dates</option><option value="today">Today</option><option value="yesterday">Yesterday</option>
         <option value="this_week">This week</option><option value="last_week">Last week</option>
@@ -401,7 +401,7 @@ tbody tr.rude-row:hover{background:#ffecec}
     <input type="date" class="tsel" id="fDateFrom" style="display:none" />
     <input type="date" class="tsel" id="fDateTo" style="display:none" />
     <div class="msel" id="fCompanyMsel"><button type="button" class="msel-btn">All companies</button><div class="msel-panel" hidden></div></div>
-    <select class="tsel" id="fSource"><option value="">All Source</option></select>
+    <div class="msel" id="fSourceMsel"><button type="button" class="msel-btn">All Source</button><div class="msel-panel" hidden></div></div>
   </div>
 
   <!-- TOOLBAR -->
@@ -478,7 +478,7 @@ const TONE_CLASS = {"Friendly":"t-friendly","Professional":"t-pro","Neutral":"t-
 
 // Bump this version whenever classification logic changes, so stale cached results
 // from an older ruleset are discarded instead of silently reused.
-const LS_KEY = "callrail_analysis_v156";
+const LS_KEY = "callrail_analysis_v157";
 const LS_APIKEY = "callrail_api_key";
 const LS_MODEL = "callrail_model";
 
@@ -684,29 +684,29 @@ function makeMultiSelect(rootId, allLabel, onChange){
 document.addEventListener("click",()=>document.querySelectorAll(".msel-panel").forEach(p=>p.hidden=true));
 
 // Source (number-name) options for the SET of selected companies (union), or every source when none selected.
-function sourceOptionsFor(companies){
+// The number names (sources) available for a SET of selected companies (union), or every source when none.
+function sourceValuesFor(companies){
   const sel = companies && companies.size ? companies : null;
-  const set=[...new Set(CALLS.filter(c=>!sel || sel.has(c.company)).map(c=>(c.numberName||"").trim()).filter(Boolean))].sort();
-  return '<option value="">All Source</option>'+set.map(s=>`<option>${esc(s)}</option>`).join("");
+  return [...new Set(CALLS.filter(c=>!sel || sel.has(c.company)).map(c=>(c.numberName||"").trim()).filter(Boolean))].sort();
 }
-// Rebuild a Source dropdown to the number names available for the current company selection,
-// keeping the current pick if it still exists (otherwise back to "All Source").
-function refreshSourceOptions(ms, sourceId){
-  const ss=$(sourceId); if(!ss||!ms) return;
-  const prev=ss.value;
-  ss.innerHTML=sourceOptionsFor(ms.selected);
-  ss.value=[...ss.options].some(o=>o.value===prev)?prev:"";
+// Rebuild a Source multi-select to the number names available for its company selection. The multi-select's
+// own build() preserves still-valid picks and drops any that no longer belong to the selected companies.
+function refreshSourceOptions(companyMSel, sourceMSel){
+  if(!sourceMSel) return;
+  sourceMSel.build(sourceValuesFor(companyMSel ? companyMSel.selected : null));
 }
 
-const companyMS   = makeMultiSelect("fCompanyMsel", "All companies", ()=>{ refreshSourceOptions(companyMS,"fSource"); renderAll(); });
-const ovCompanyMS = makeMultiSelect("ovCompanyMsel","All companies", ()=>{ refreshSourceOptions(ovCompanyMS,"ovSource"); renderOverview(); });
+const companyMS   = makeMultiSelect("fCompanyMsel", "All companies", ()=>{ refreshSourceOptions(companyMS,sourceMS);     renderAll(); });
+const ovCompanyMS = makeMultiSelect("ovCompanyMsel","All companies", ()=>{ refreshSourceOptions(ovCompanyMS,ovSourceMS); renderOverview(); });
+const sourceMS    = makeMultiSelect("fSourceMsel",  "All Source", renderAll);
+const ovSourceMS  = makeMultiSelect("ovSourceMsel", "All Source", renderOverview);
 
 function buildCompanyFilter(){
   const set=[...new Set(CALLS.map(c=>c.company).filter(Boolean))].sort();
   if(companyMS)   companyMS.build(set);
   if(ovCompanyMS) ovCompanyMS.build(set);      // Overview shares the same company list
-  refreshSourceOptions(companyMS,"fSource");
-  refreshSourceOptions(ovCompanyMS,"ovSource");
+  refreshSourceOptions(companyMS,sourceMS);
+  refreshSourceOptions(ovCompanyMS,ovSourceMS);
 }
 
 /* ============================================================
@@ -2189,7 +2189,6 @@ $("fBooking").addEventListener("change",renderTable);
 $("fService").addEventListener("change",renderTable);
 $("fTone").addEventListener("change",renderTable);
 $("fStatus").addEventListener("change",renderTable);
-$("fSource").addEventListener("change",renderAll);
 $("fDateRange").addEventListener("change",()=>{
   const isCustom=$("fDateRange").value==="custom";
   $("fDateFrom").style.display=isCustom?"":"none";
@@ -2205,10 +2204,10 @@ function renderAll(){ renderStats(); renderReasons(); renderTable(); renderOverv
 // Overview has its OWN date-range + company controls (independent of the Call Log filters).
 function ovBounds(){ return dateRangeBounds($("ovDateRange").value, $("ovFrom").value, $("ovTo").value); }
 function ovCalls(){
-  const bounds=ovBounds(), fsrc=($("ovSource")?$("ovSource").value:"");
+  const bounds=ovBounds();
   return CALLS.filter(c=>{
     if(ovCompanyMS && !ovCompanyMS.has(c.company)) return false;
-    if(fsrc && (c.numberName||"").trim()!==fsrc) return false;
+    if(ovSourceMS && !ovSourceMS.has((c.numberName||"").trim())) return false;
     if(bounds){ const d=new Date(c.startTime); if(isNaN(d)) return false;
       if(bounds[0] && d<bounds[0]) return false; if(bounds[1] && d>bounds[1]) return false; }
     return true;
@@ -2414,7 +2413,6 @@ $("ovDateRange").addEventListener("change",()=>{
 });
 $("ovFrom").addEventListener("change",renderOverview);
 $("ovTo").addEventListener("change",renderOverview);
-$("ovSource").addEventListener("change",renderOverview);
 
 // Returns [start,end] Date bounds (either side may be null = unbounded) for a date-range preset,
 // or null when no date filtering should apply ("All dates", or "Custom" with both fields empty).
@@ -2449,10 +2447,9 @@ function dateRangeBounds(preset,customFrom,customTo){
 // used to scope the top stat cards and category counts to the selected range.
 function callsInDateRange(){
   const bounds=dateRangeBounds($("fDateRange").value,$("fDateFrom").value,$("fDateTo").value);
-  const fsrc=($("fSource")?$("fSource").value:"");
   return CALLS.filter(c=>{
     if(companyMS && !companyMS.has(c.company)) return false;
-    if(fsrc && (c.numberName||"").trim()!==fsrc) return false;
+    if(sourceMS && !sourceMS.has((c.numberName||"").trim())) return false;
     if(bounds){
       const d=new Date(c.startTime);
       if(isNaN(d)) return false;
@@ -2466,12 +2463,11 @@ function callsInDateRange(){
 function filtered(){
   const q=$("search").value.toLowerCase().trim();
   const fb=$("fBooking").value, fs=$("fService").value, fst=$("fStatus").value, ft=$("fTone").value;
-  const fsrc=($("fSource")?$("fSource").value:"");
   const bounds=dateRangeBounds($("fDateRange").value,$("fDateFrom").value,$("fDateTo").value);
   return CALLS.filter(c=>{
     const a=c.analysis;
     if(companyMS && !companyMS.has(c.company)) return false;
-    if(fsrc && (c.numberName||"").trim()!==fsrc) return false;
+    if(sourceMS && !sourceMS.has((c.numberName||"").trim())) return false;
     if(activeReasons.size && (!a || !activeReasons.has(a.invalid_reason))) return false;
     if(fb && (!a || a.booking_status!==fb)) return false;
     if(fs==="yes" && (!a || !a.is_service_call)) return false;
