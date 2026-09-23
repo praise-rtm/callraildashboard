@@ -478,7 +478,7 @@ const TONE_CLASS = {"Friendly":"t-friendly","Professional":"t-pro","Neutral":"t-
 
 // Bump this version whenever classification logic changes, so stale cached results
 // from an older ruleset are discarded instead of silently reused.
-const LS_KEY = "callrail_analysis_v158";
+const LS_KEY = "callrail_analysis_v159";
 const LS_APIKEY = "callrail_api_key";
 const LS_MODEL = "callrail_model";
 
@@ -1733,7 +1733,9 @@ function classifyHeuristic(call){
   // employers, an assistant, an adult child calling for a parent) uses that exact same generic phrasing
   // for a totally legitimate service call; it's only a marketing signal when paired with actual vendor
   // pitch language, which the rest of this list already covers.
-  const marketing = has("help with marketing","help with your marketing","help you with marketing","help with advertising",
+  const marketing = has("pay per call","pay-per-call","paper call marketing","marketing company","marketing agency",
+    "marketing firm","lead generation company","lead gen company","we're a marketing","we are a marketing","qualified calls",
+    "help with marketing","help with your marketing","help you with marketing","help with advertising",
     "help with marketing and branding","marketing and branding","branding and marketing","help with your branding",
     "need help with marketing","assistance with marketing","with your marketing and","help you with your marketing",
     "offer you a","we can help you get more","merchant services",
