@@ -105,7 +105,7 @@ ul.ins{margin:6px 0 0;padding-left:20px} ul.ins li{margin-bottom:8px;font-size:1
 <div class="wrap">
   <div class="panel">
     <h2>Generate a report</h2>
-    <p class="help">Paste one or more LSA Report Google Sheet links, one per line. Each sheet needs sharing set to <b>Anyone with the link can view</b>. The dashboard reads the month tabs (named like “June 2026”), sorts calls into <b>AI</b>, <b>In House</b> or <b>AS</b> (Answering Service) using column F, and counts a call as booked when column J is 1. Paste two or more links to also get a comparison.</p>
+    <p class="help">Paste one or more LSA Report Google Sheet links, one per line. Each sheet needs sharing set to <b>Anyone with the link can view</b>. The dashboard reads the month tabs (named like “June 2026”), sorts calls into <b>AI</b>, <b>In House</b> or <b>AS</b> (Answering Service, including values like “AS - AnswerForce”) using column F, and counts a call as booked when column J is 1. Paste two or more links to also get a comparison.</p>
     <label for="links">Report links</label>
     <textarea id="links" placeholder="https://docs.google.com/spreadsheets/d/…/edit"></textarea>
     <div class="row">
@@ -199,10 +199,11 @@ async function fetchTab(id, gid){
 
 /* ---------- row parsing ---------- */
 function normType(v){
+  // "AS", "AS - AnswerForce", "AS – Ruby", "Answering Service" all count as Answering Service
+  if(/^\s*(as|answering\s*service)\s*([-–—:]|$)/i.test(String(v || ""))) return "AS";
   const t = String(v || "").toLowerCase().replace(/[\s\-_.]/g, "");
   if(t === "ai") return "AI";
   if(t === "inhouse") return "IH";
-  if(t === "as" || t === "answeringservice") return "AS";
   if(["", "n/a", "na", "booking", "message", "none"].includes(t)) return "NA";
   return "ODD";
 }
