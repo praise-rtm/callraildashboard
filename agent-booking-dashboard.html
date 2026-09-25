@@ -22,8 +22,6 @@ textarea,input[type=month],input[type=number]{font:inherit;border:1px solid #cbd
 textarea{min-height:78px;resize:vertical}
 textarea:focus,input:focus{outline:2px solid var(--blue);outline-offset:0;border-color:transparent}
 .row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-top:12px}
-.chk{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:13px;color:#374151}
-.chk input{width:16px;height:16px;accent-color:var(--blue)}
 .btns{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
 button{font:inherit;font-family:Outfit;font-weight:600;border:0;border-radius:999px;padding:10px 22px;cursor:pointer}
 .go{background:var(--orange);color:var(--navy)}
@@ -115,7 +113,6 @@ ul.ins{margin:6px 0 0;padding-left:20px} ul.ins li{margin-bottom:8px;font-size:1
       <div><label for="to">To month</label><input type="month" id="to"></div>
       <div><label for="minCalls">Show agents with at least</label><input type="number" id="minCalls" min="1" value="30"></div>
     </div>
-    <label class="chk"><input type="checkbox" id="autofix"> Auto-correct column F: count each agent under the type they're usually marked as (fixes an agent marked with the wrong type on a few calls)</label>
     <div class="btns">
       <button class="go" id="run">Generate report</button>
       <button class="sec" id="pdf" disabled>Download PDF</button>
@@ -229,8 +226,8 @@ function parseRows(csv, key){
 }
 
 /* ---------- data checks + auto-correct ---------- */
-function dataChecks(rows, autofix){
-  const issues = [], fixes = [];
+function dataChecks(rows){
+  const issues = [];
   const byName = {};
   rows.forEach(r => { if(GENERIC_NAMES.test(r.name)) return; (byName[r.name] = byName[r.name] || []).push(r); });
   const mainType = {};
@@ -254,10 +251,9 @@ function dataChecks(rows, autofix){
     let msg = `${g.rows.length} call${g.rows.length>1?"s":""} by <b>${esc(g.name || "(no name)")}</b> marked “${esc(g.raw)}”`;
     msg += g.mt ? ` but ${esc(g.name)} is usually ${T[g.mt].long}` : " (not AI, In House or AS)";
     msg += ` (${nb} booked): ${esc(when)}`;
-    if(autofix && g.mt){ g.rows.forEach(r => r.type = g.mt); fixes.push(msg + ` → counted as ${T[g.mt].long}`); }
-    else issues.push(msg + (g.mt ? "" : " → left out"));
+    issues.push(msg + (g.mt ? "" : " → left out"));
   }
-  return {issues, fixes};
+  return {issues};
 }
 
 /* ---------- stats ---------- */
@@ -482,8 +478,7 @@ function renderReport(c){
   const mrows = s.byMonth.map(m => { const w = worst(m), spread = w && Math.max(...ts.filter(t => m[t].n >= 5).map(t => m[t].rate)) - m[w].rate > 0.1;
     return `<tr><td>${monthName(m.k)}${m.k === s.partial ? "*" : ""}</td>${ts.map(t => `<td class="num">${m[t].n}</td><td class="num">${m[t].b}</td><td class="num ${spread && t === w ? "bad" : ""}"><b>${pct(m[t].rate)}</b></td>`).join("")}</tr>`; }).join("");
   const warn = [];
-  if(c.checks.issues.length) warn.push(`<div class="warn"><b>Data check: column F</b><ul>${c.checks.issues.map(i => `<li>${i}</li>`).join("")}</ul><div class="note" style="color:#7f1d1d">These calls are counted as column F says. Fix them in the sheet, or tick “Auto-correct column F” above and generate again.</div></div>`);
-  if(c.checks.fixes.length) warn.push(`<div class="callout" style="background:#eff6ff;border-color:#1C77D9"><b>Auto-corrected column F</b><ul style="margin:6px 0 0;padding-left:18px">${c.checks.fixes.map(i => `<li>${i}</li>`).join("")}</ul></div>`);
+  if(c.checks.issues.length) warn.push(`<div class="warn"><b>Data check: column F</b><ul>${c.checks.issues.map(i => `<li>${i}</li>`).join("")}</ul><div class="note" style="color:#7f1d1d">These calls are counted as column F says. Fix them in the sheet and generate the report again.</div></div>`);
   const foot = [];
   if(s.partial) foot.push(`*${monthName(s.partial)} covers ${monthName(s.partial)} 1–${s.lastDate.getDate()} only.`);
   foot.push(`Excludes ${s.other} message and booking-form leads where column F isn't AI, In House or AS.`);
@@ -581,8 +576,8 @@ async function run(){
   if(!ids.length){ setStatus(`<span class="err">Paste at least one Google Sheets link.</span>`); return; }
   const from = $("from").value, to = $("to").value;
   if(!from || !to || from > to){ setStatus(`<span class="err">Pick a valid month range.</span>`); return; }
-  const minCalls = Math.max(1, +$("minCalls").value || 30), autofix = $("autofix").checked;
-  store.set("links", $("links").value); store.set("from", from); store.set("to", to); store.set("min", String(minCalls)); store.set("autofix", autofix ? "1" : "");
+  const minCalls = Math.max(1, +$("minCalls").value || 30);
+  store.set("links", $("links").value); store.set("from", from); store.set("to", to); store.set("min", String(minCalls));
   $("run").disabled = true; $("pdf").disabled = true;
   const companies = [], errors = [];
   try {
@@ -606,7 +601,7 @@ async function run(){
       js.filter(j => j.err).forEach(j => errors.push(`${esc(inf.client)} · ${esc(j.t.name)}: ${esc(j.err)}`));
       const rows = js.flatMap(j => j.rows || []);
       if(!rows.length){ if(js.length) errors.push(`${esc(inf.client)}: no calls found in the selected months.`); continue; }
-      const checks = dataChecks(rows, autofix);
+      const checks = dataChecks(rows);
       const months = [...new Set(js.map(j => j.t.key))].sort();
       companies.push({client: inf.client, s: analyze(rows, months, minCalls), checks});
     }
@@ -628,7 +623,6 @@ $("pdf").addEventListener("click", () => { const t = document.title; document.ti
   $("from").value = store.get("from") || key(new Date(now.getFullYear(), now.getMonth()-3, 1));
   $("to").value = store.get("to") || key(now);
   $("minCalls").value = store.get("min") || "30";
-  $("autofix").checked = store.get("autofix") === "1";
   const q = new URLSearchParams(location.search).get("sheet");
   if(q){ $("links").value = q; run(); }
   if(OPAQUE) setStatus(`<span class="err">This page is open as a local file, and Google blocks sheet reads from local files. Open it from its web address instead.</span>`);
