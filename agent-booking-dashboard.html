@@ -267,6 +267,8 @@ const mmss = s => isFinite(s) ? Math.floor(s/60) + ":" + String(Math.round(s%60)
 const monthName = k => MONTHS[+k.slice(5)-1];
 const joinList = a => a.length <= 1 ? (a[0]||"") : a.slice(0,-1).join(", ") + " and " + a[a.length-1];
 const bucket = h => h == null ? null : h < 7 ? "overnight" : h < 17 ? "business" : "evening";
+/* After hours = 5 PM to 7 AM, i.e. evening + overnight. */
+const inBucket = (h, b) => b === "after" ? (bucket(h) === "evening" || bucket(h) === "overnight") : bucket(h) === b;
 const isWeekend = r => [0,6].includes(r.date.getDay());
 
 function analyze(rows, months, minCalls){
@@ -288,9 +290,9 @@ function analyze(rows, months, minCalls){
   s.aiAgents = s.agents.filter(a => a.type === "AI" && !GENERIC_NAMES.test(a.name)).sort((a,b) => b.n - a.n);
   // time of day
   s.hours = {};
-  for(const b of ["overnight","business","evening"]){
-    const inB = agent.filter(r => bucket(r.hour) === b);
-    s.hours[b] = each(rs => ({...st(rs.filter(r => bucket(r.hour) === b)), share: inB.length ? rs.filter(r => bucket(r.hour) === b).length / inB.length : NaN}));
+  for(const b of ["overnight","business","evening","after"]){
+    const inB = agent.filter(r => inBucket(r.hour, b));
+    s.hours[b] = each(rs => ({...st(rs.filter(r => inBucket(r.hour, b))), share: inB.length ? rs.filter(r => inBucket(r.hour, b)).length / inB.length : NaN}));
   }
   s.weekend = each(rs => st(rs.filter(isWeekend)));
   s.weekday = each(rs => st(rs.filter(r => !isWeekend(r))));
@@ -346,26 +348,31 @@ function bottomLine(s){
     }
   }
   parts.push("Share of agent calls: " + joinList(ts.map(t => `${T[t].long} ${pct0(s.callShare[t])}`)) + ".");
-  const on = s.hours.overnight, onTop = [...ts].sort((a,b) => on[b].n - on[a].n)[0];
-  if(on[onTop].n >= 5) parts.push(on[onTop].share >= 0.995 ? `All overnight calls go to ${T[onTop].the}, which books ${pct(on[onTop].rate)} of them.` : `Most overnight calls go to ${T[onTop].the} (${pct0(on[onTop].share)}), which books ${pct(on[onTop].rate)} of them.`);
+  const ah = s.hours.after, ahTop = [...ts].sort((a,b) => ah[b].n - ah[a].n)[0];
+  if(ah[ahTop].n >= 5) parts.push(ah[ahTop].share >= 0.995 ? `All after-hours calls (5 PM to 7 AM) go to ${T[ahTop].the}, which books ${pct(ah[ahTop].rate)} of them.` : `${cap(T[ahTop].the)} takes the most after-hours calls (5 PM to 7 AM), ${pct0(ah[ahTop].share)} of them, and books ${pct(ah[ahTop].rate)}.`);
   return parts.join(" ");
 }
 
 function cards(s){
   const out = [], ts = present(s);
-  const on = s.hours.overnight, ev = s.hours.evening;
-  // 1 overnight / weekend
-  const onTop = [...ts].sort((a,b) => on[b].n - on[a].n)[0];
-  if(on[onTop].n >= 5){
-    const others = ts.filter(t => t !== onTop && on[t].n >= 5);
-    out.push([`Overnight coverage: ${T[onTop].long}`, `${cap(T[onTop].the)} took ${on[onTop].share >= 0.995 ? "<b>every</b>" : "<b>" + pct0(on[onTop].share) + "</b> of"} overnight call${on[onTop].share >= 0.995 ? "" : "s"} (midnight to 7 AM) and booked <b>${on[onTop].b} of ${on[onTop].n} (${pct(on[onTop].rate)})</b>.` + (others.length ? " " + others.map(t => `${cap(T[t].the)} booked ${pct(on[t].rate)} of ${on[t].n}.`).join(" ") : "") + (s.weekend.AI.n >= 5 ? ` On weekends the AI booked <b>${pct(s.weekend.AI.rate)}</b>, against ${pct(s.weekday.AI.rate)} on weekdays.` : "")]);
+  const ah = s.hours.after, bh = s.hours.business, on = s.hours.overnight;
+  // 1 after hours (5 PM to 7 AM) / weekend
+  const ahTop = [...ts].sort((a,b) => ah[b].n - ah[a].n)[0];
+  if(ah[ahTop].n >= 5){
+    const others = ts.filter(t => t !== ahTop && ah[t].n >= 5);
+    let txt = `${cap(T[ahTop].the)} took ${ah[ahTop].share >= 0.995 ? "<b>every</b>" : "<b>" + pct0(ah[ahTop].share) + "</b> of"} after-hours call${ah[ahTop].share >= 0.995 ? "" : "s"} (5 PM to 7 AM) and booked <b>${ah[ahTop].b} of ${ah[ahTop].n} (${pct(ah[ahTop].rate)})</b>.`;
+    if(others.length) txt += " " + others.map(t => `${cap(T[t].the)} booked ${pct(ah[t].rate)} of ${ah[t].n}.`).join(" ");
+    const onTop = [...ts].sort((a,b) => on[b].n - on[a].n)[0];
+    if(on[onTop].n >= 5) txt += ` Overnight (midnight to 7 AM), ${on[onTop].share >= 0.995 ? "every call went to " + T[onTop].the + ", which booked " : T[onTop].the + " took " + pct0(on[onTop].share) + " of calls and booked "}${pct(on[onTop].rate)}.`;
+    if(s.weekend.AI.n >= 5) txt += ` On weekends the AI booked <b>${pct(s.weekend.AI.rate)}</b>, against ${pct(s.weekday.AI.rate)} on weekdays.`;
+    out.push([`After-hours coverage: ${T[ahTop].long}`, txt]);
   }
-  // 2 evening
-  const evTs = ts.filter(t => ev[t].n >= 5);
-  if(evTs.length >= 2){
-    const rk = [...evTs].sort((a,b) => ev[b].rate - ev[a].rate), best = rk[0], worst = rk[rk.length-1];
-    const title = ev[best].rate - ev[worst].rate > 0.05 ? `Evenings: ${T[best].long} books the most` : "Evenings are about even";
-    out.push([title, "From 5 PM to midnight " + joinList(evTs.map(t => `${T[t].the} booked <b>${pct(ev[t].rate)}</b> (${ev[t].b} of ${ev[t].n})`)) + ". Share of evening calls: " + joinList(evTs.map(t => `${T[t].long} ${pct0(ev[t].share)}`)) + "."]);
+  // 2 business hours
+  const bhTs = ts.filter(t => bh[t].n >= 5);
+  if(bhTs.length >= 2){
+    const rk = [...bhTs].sort((a,b) => bh[b].rate - bh[a].rate), best = rk[0], worst = rk[rk.length-1];
+    const title = bh[best].rate - bh[worst].rate > 0.05 ? `Business hours: ${T[best].long} books the most` : "Business hours are about even";
+    out.push([title, "From 7 AM to 5 PM " + joinList(bhTs.map(t => `${T[t].the} booked <b>${pct(bh[t].rate)}</b> (${bh[t].b} of ${bh[t].n})`)) + ". Share of business-hours calls: " + joinList(bhTs.map(t => `${T[t].long} ${pct0(bh[t].share)}`)) + "."]);
   }
   // 3 repair AC + call mix
   const rp = s.repair, rTs = ts.filter(t => rp[t].n >= 5);
@@ -395,17 +402,22 @@ function recommendations(s, issues){
   }
   if(s.discShare.AI >= 0.08 && s.disc.AI >= 10)
     recs.push(`<b>Fix the AI's after-hours handoff.</b> ${s.disc.AI} AI calls ended “Disconnected”. When no one can take a transfer, a request to talk to a person should become a scheduled callback.`);
-  const on = s.hours.overnight;
+  const ah = s.hours.after;
   const wk = s.weekend.AI.n >= 10 && s.weekend.AI.rate - s.weekday.AI.rate >= 0.03;
-  if(on.AI.n >= 5 && on.AI.rate >= s.t.AI.rate - 0.02 && !(s.t.AS.n && on.AS.n >= 5 && on.AS.rate > on.AI.rate + 0.05))
-    recs.push(`<b>Keep the AI on overnight${wk ? " and weekend" : ""} coverage.</b> It books ${pct(on.AI.rate)} overnight${wk ? " and " + pct(s.weekend.AI.rate) + " on weekends" : ""}.`);
+  // only recommend the AI for a time slot where nobody else books clearly better
+  const beaten = h => ["IH","AS"].some(t => h[t].n >= 10 && h[t].rate > h.AI.rate + 0.05);
+  const on = s.hours.overnight;
+  if(ah.AI.n >= 5 && ah.AI.rate >= s.t.AI.rate - 0.02 && !beaten(ah))
+    recs.push(`<b>Keep the AI on after-hours${wk ? " and weekend" : ""} coverage.</b> It books ${pct(ah.AI.rate)} of after-hours calls (5 PM to 7 AM)${wk ? " and " + pct(s.weekend.AI.rate) + " on weekends" : ""}.`);
+  else if(on.AI.n >= 5 && on.AI.rate >= s.t.AI.rate - 0.02 && !beaten(on))
+    recs.push(`<b>Keep the AI on overnight${wk ? " and weekend" : ""} coverage.</b> It books ${pct(on.AI.rate)} of calls from midnight to 7 AM${wk ? " and " + pct(s.weekend.AI.rate) + " on weekends" : ""}.`);
   // answering service
   if(s.t.AS.n >= 10){
     const others = ["AI","IH"].filter(t => s.t[t].n >= 10);
     const below = others.filter(t => s.t[t].rate - s.t.AS.rate >= 0.05), above = others.filter(t => s.t.AS.rate - s.t[t].rate >= 0.05);
-    const hrs = ["overnight","business","evening"].filter(b => s.hours[b].AS.n).sort((a,b) => s.hours[b].AS.n - s.hours[a].AS.n)[0];
+    const hrs = ["business","after"].filter(b => s.hours[b].AS.n).sort((a,b) => s.hours[b].AS.n - s.hours[a].AS.n)[0];
     if(below.length)
-      recs.push(`<b>Review the answering service's calls.</b> It books ${pct(s.t.AS.rate)}, against ${joinList(below.map(t => `${pct(s.t[t].rate)} for ${T[t].the}`))}. Most of its calls come in ${hrs === "business" ? "during business hours" : hrs === "overnight" ? "overnight" : "in the evening"}; check whether ${below.includes("AI") ? "the AI" : "the in-house team"} could take those hours instead.`);
+      recs.push(`<b>Review the answering service's calls.</b> It books ${pct(s.t.AS.rate)}, against ${joinList(below.map(t => `${pct(s.t[t].rate)} for ${T[t].the}`))}. Most of its calls come in ${hrs === "business" ? "during business hours" : "after hours (5 PM to 7 AM)"}; check whether ${below.includes("AI") ? "the AI" : "the in-house team"} could take those hours instead.`);
     else if(above.length)
       recs.push(`<b>Learn from the answering service.</b> It books ${pct(s.t.AS.rate)}, against ${joinList(above.map(t => `${pct(s.t[t].rate)} for ${T[t].the}`))}. Its scripts and handoffs may be worth copying.`);
   }
@@ -462,9 +474,10 @@ function agentBars(s){
 }
 function timeTable(s){
   const ts = s.types, cell = (x, share) => x.n ? `${pct(x.rate)} <span style="color:#6b7280">(${x.b}/${x.n}${share != null ? ", " + pct0(share) + " of calls" : ""})</span>` : "–";
-  const rows = [["Overnight (12–7 AM)", t => cell(s.hours.overnight[t], s.hours.overnight[t].share)],
-                ["Business hours (7 AM–5 PM)", t => cell(s.hours.business[t], s.hours.business[t].share)],
-                ["Evening (5 PM–12 AM)", t => cell(s.hours.evening[t], s.hours.evening[t].share)],
+  const rows = [["Business hours (7 AM–5 PM)", t => cell(s.hours.business[t], s.hours.business[t].share)],
+                ["After hours (5 PM–7 AM)", t => cell(s.hours.after[t], s.hours.after[t].share)],
+                ["&nbsp;&nbsp;&nbsp;Evening (5 PM–12 AM)", t => cell(s.hours.evening[t], s.hours.evening[t].share)],
+                ["&nbsp;&nbsp;&nbsp;Overnight (12–7 AM)", t => cell(s.hours.overnight[t], s.hours.overnight[t].share)],
                 ["Weekdays", t => cell(s.weekday[t])], ["Weekends", t => cell(s.weekend[t])],
                 ["“Repair AC” calls", t => cell(s.repair[t])]];
   return `<div class="tablewrap"><table><tr><th>Booking rate</th>${ts.map(t => `<th class="${t} num">${T[t].long}</th>`).join("")}</tr>${rows.map(([l,f]) => `<tr><td>${l}</td>${ts.map(t => `<td class="num">${f(t)}</td>`).join("")}</tr>`).join("")}</table></div>`;
@@ -528,7 +541,7 @@ function renderComparison(cs){
     ${ts.map(t => row(`<b>${T[t].long} booking rate</b>`, s => s.t[t].n ? `<b>${pct(s.t[t].rate)}</b> (${s.t[t].b}/${s.t[t].n})` : "–")).join("")}
     ${row("Gap (in house minus AI)", s => (s.t.IH.rate - s.t.AI.rate >= 0 ? "" : "−") + pts(s.t.IH.rate - s.t.AI.rate) + " pts")}
     ${row("AI rate, first → last month", s => { const m = s.byMonth.filter(x => x.AI.n); return m.length ? `${pct(m[0].AI.rate)} → ${pct(m[m.length-1].AI.rate)}` : "–"; })}
-    ${row("Overnight rate", per((s,t) => s.hours.overnight[t].n ? pct(s.hours.overnight[t].rate) : "–"))}
+    ${row("After-hours rate (5 PM–7 AM)", per((s,t) => s.hours.after[t].n ? pct(s.hours.after[t].rate) : "–"))}
     ${row("Evening rate", per((s,t) => s.hours.evening[t].n ? pct(s.hours.evening[t].rate) : "–"))}
     ${row("AC repair rate", per((s,t) => pct(s.repair[t].rate)))}
     ${row("Calls ending “Disconnected”", per((s,t) => s.disc[t]))}
@@ -544,8 +557,8 @@ function renderComparison(cs){
   if(withAS.length) ins.push(`<b>Answering service:</b> ` + joinList(withAS.map(c => `at ${esc(c.client)} it takes ${pct0(c.s.callShare.AS)} of calls and books ${pct(c.s.t.AS.rate)}`)) + (cs.length > withAS.length ? `. ${joinList(cs.filter(c => !c.s.t.AS.n).map(c => esc(c.client)))} ${cs.length - withAS.length > 1 ? "have" : "has"} no AS calls in this period` : "") + ".");
   const gaps = by(s => s.t.IH.rate - s.t.AI.rate), share = by(s => s.callShare.AI);
   ins.push(`<b>How much the AI is used:</b> the AI takes ${joinList(cs.map(c => pct0(c.s.callShare.AI) + " of calls at " + esc(c.client)))}. The biggest gap between in house and AI is at ${esc(gaps[0].client)} (${pts(gaps[0].s.t.IH.rate - gaps[0].s.t.AI.rate)} pts)${share[0] === gaps[0] ? ", which is also where the AI takes the most calls" : ""}.`);
-  const ov = cs.filter(c => c.s.hours.overnight.AI.n >= 5);
-  if(ov.length) ins.push(`<b>Overnight:</b> the AI books ${joinList(ov.map(c => `${pct(c.s.hours.overnight.AI.rate)} of overnight calls at ${esc(c.client)}`))}${ov.every(c => c.s.hours.overnight.AI.rate >= c.s.t.AI.rate) ? ", above its own average in every case" : ""}.`);
+  const ov = cs.filter(c => c.s.hours.after.AI.n >= 5);
+  if(ov.length) ins.push(`<b>After hours (5 PM to 7 AM):</b> the AI takes ${joinList(ov.map(c => `${pct0(c.s.hours.after.AI.share)} of after-hours calls at ${esc(c.client)} and books ${pct(c.s.hours.after.AI.rate)}`))}.`);
   const ev = cs.filter(c => c.s.hours.evening.AI.n >= 5 && c.s.hours.evening.IH.n >= 5);
   const evBehind = ev.filter(c => c.s.hours.evening.IH.rate > c.s.hours.evening.AI.rate);
   if(ev.length) ins.push(`<b>Evenings:</b> the AI books less than the in-house team from 5 PM to midnight at ${evBehind.length} of ${ev.length} compan${ev.length > 1 ? "ies" : "y"}${evBehind.length ? " (" + evBehind.map(c => `${esc(c.client)}: ${pct(c.s.hours.evening.AI.rate)} vs ${pct(c.s.hours.evening.IH.rate)}`).join("; ") + ")" : ""}.`);
