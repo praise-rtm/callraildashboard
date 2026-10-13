@@ -478,7 +478,7 @@ const TONE_CLASS = {"Friendly":"t-friendly","Professional":"t-pro","Neutral":"t-
 
 // Bump this version whenever classification logic changes, so stale cached results
 // from an older ruleset are discarded instead of silently reused.
-const LS_KEY = "callrail_analysis_v159";
+const LS_KEY = "callrail_analysis_v160";
 const LS_APIKEY = "callrail_api_key";
 const LS_MODEL = "callrail_model";
 
@@ -1733,7 +1733,14 @@ function classifyHeuristic(call){
   // employers, an assistant, an adult child calling for a parent) uses that exact same generic phrasing
   // for a totally legitimate service call; it's only a marketing signal when paired with actual vendor
   // pitch language, which the rest of this list already covers.
-  const marketing = has("pay per call","pay-per-call","paper call marketing","marketing company","marketing agency",
+  const marketing = has(
+    // Caller pitching their own unrelated B2B service (e.g. a freight/trucking company cold-pitching a
+    // plumber to haul for them) — not a customer. These phrases don't occur in a genuine plumbing/HVAC
+    // service call. ("I can move it for you" is deliberately NOT included — an agent offering to MOVE an
+    // appointment says exactly that.)
+    "trucking business","transportation business","in the trucking","in the transportation business",
+    "motor freight","freight company","freight business","freight brokerage","we haul","we can haul",
+    "pay per call","pay-per-call","paper call marketing","marketing company","marketing agency",
     "marketing firm","lead generation company","lead gen company","we're a marketing","we are a marketing","qualified calls",
     "help with marketing","help with your marketing","help you with marketing","help with advertising",
     "help with marketing and branding","marketing and branding","branding and marketing","help with your branding",
