@@ -478,7 +478,7 @@ const TONE_CLASS = {"Friendly":"t-friendly","Professional":"t-pro","Neutral":"t-
 
 // Bump this version whenever classification logic changes, so stale cached results
 // from an older ruleset are discarded instead of silently reused.
-const LS_KEY = "callrail_analysis_v160";
+const LS_KEY = "callrail_analysis_v163";
 const LS_APIKEY = "callrail_api_key";
 const LS_MODEL = "callrail_model";
 
@@ -1338,6 +1338,18 @@ function buildHeuristicSummary(call,res){
   const isRepeat=ft.includes("false")||ft==="no"||ft==="0";
   const who=isFirst?"A first-time caller":(isRepeat?"A returning caller":"The caller");
 
+  // Security/phishing warning call (flagged in classifyHeuristic) — describe the warning, not a service.
+  if(res.securityWarning){
+    const raw=call.transcription||"";
+    const nm=raw.match(/\bdo you have (?:a |an )?([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,1})\b/)
+          || raw.match(/\bemail from (?:a |an )?([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,1})\b/);
+    const name=nm?nm[1].trim():null;
+    return `${who} called to warn the business that their web address or email may have been hacked or spoofed. `+
+      `The caller said they had received a suspicious spam/phishing email${name?` from someone using the name ${name}`:""} `+
+      `requesting a quote, sent from a look-alike version of the company's web address and tied to a former employee. `+
+      `It was a courtesy heads-up rather than a service request — the agent thanked them and said they would look into it, so no appointment was booked.`;
+  }
+
   // What service the caller requested (shared with the dedicated "Requested Service" column).
   const rs=detectRequestedService(call);
   let topic=rs||"a service request";
@@ -1733,14 +1745,7 @@ function classifyHeuristic(call){
   // employers, an assistant, an adult child calling for a parent) uses that exact same generic phrasing
   // for a totally legitimate service call; it's only a marketing signal when paired with actual vendor
   // pitch language, which the rest of this list already covers.
-  const marketing = has(
-    // Caller pitching their own unrelated B2B service (e.g. a freight/trucking company cold-pitching a
-    // plumber to haul for them) — not a customer. These phrases don't occur in a genuine plumbing/HVAC
-    // service call. ("I can move it for you" is deliberately NOT included — an agent offering to MOVE an
-    // appointment says exactly that.)
-    "trucking business","transportation business","in the trucking","in the transportation business",
-    "motor freight","freight company","freight business","freight brokerage","we haul","we can haul",
-    "pay per call","pay-per-call","paper call marketing","marketing company","marketing agency",
+  const marketing = has("pay per call","pay-per-call","paper call marketing","marketing company","marketing agency",
     "marketing firm","lead generation company","lead gen company","we're a marketing","we are a marketing","qualified calls",
     "help with marketing","help with your marketing","help you with marketing","help with advertising",
     "help with marketing and branding","marketing and branding","branding and marketing","help with your branding",
@@ -1864,6 +1869,21 @@ function classifyHeuristic(call){
   // service call. A dispatcher note describing a short ring-then-hangup is the norm for this pattern.
   if(callerText.trim() && !agentText.trim())
     return normalize({summary,is_service_call:false,booking_status:"Not Booked",invalid_reason:"Disconnected",confidence:"Medium",engine:"heuristic"},call);
+
+  // Caller WARNING the business about a security/phishing issue — "you've been hacked", "somebody's using
+  // your web address", a spam/phishing email impersonating the company or a former employee, etc. This is a
+  // legitimate, valuable contact (someone looking out for the business), NOT spam/marketing and NOT a
+  // service request — a Valid Call that simply didn't book. Checked before the spam/marketing branches so an
+  // incidental vendor mention later in the same call can't override the real reason for the call.
+  const securityWarning =
+    /\bbeen hacked\b|\bgot hacked\b/i.test(blob)
+    || /\b(?:somebody|someone)'?s?\s+(?:using|putting|spoofing|impersonating)\s+(?:your|the)\b/i.test(blob)
+    || /\busing your (?:web\s*address|web\s*site|website|domain|email|name|company name)\b/i.test(blob)
+    || /\b(?:spam|phishing|fishing)\b[^.!?\n]{0,30}\b(?:email|thing|scam|message|link|attempt)\b/i.test(blob)
+    || /\b(?:received|receiving|getting|got)\b[^.!?\n]{0,30}\b(?:spam|phishing|suspicious|scam)\s+(?:email|message|link)\b/i.test(blob)
+    || /\bdon'?t even know (?:they'?ve|you'?ve|they have|you have) been hacked\b/i.test(blob);
+  if(securityWarning)
+    return normalize({summary,is_service_call:true,booking_status:"Not Booked",invalid_reason:"Valid Call",confidence:"Medium",engine:"heuristic",securityWarning:true},call);
 
   if(agencyQA)  return normalize({summary,is_service_call:false,booking_status:"N/A",invalid_reason:"Marketing",confidence:"Medium",engine:"heuristic"},call);
   if(spam)     return normalize({summary,is_service_call:false,booking_status:"N/A",invalid_reason:"Spam",confidence:"Medium",engine:"heuristic"},call);
@@ -2161,7 +2181,9 @@ function normalize(a, call){
   // business). Every other non-service category (spam, wrong number, job application, marketing,
   // incorrect business) has no genuine service request, so it stays "—". Use the AI's value when it's
   // specific; otherwise fall back to transcript-based detection, cleaned to a short noun-phrase label.
-  if(!a.is_service_call){
+  if(a.securityWarning){
+    a.requested_service = "—";   // a phishing/hack warning is not a service request
+  } else if(!a.is_service_call){
     const det = a.invalid_reason==="Disconnected" ? detectRequestedService(call) : null;
     const namesKnownService = !!det && Object.prototype.hasOwnProperty.call(SERVICE_LABEL_MAP, det);
     a.requested_service = namesKnownService ? cleanServiceLabel(det) : "—";
