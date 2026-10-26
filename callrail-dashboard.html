@@ -478,7 +478,7 @@ const TONE_CLASS = {"Friendly":"t-friendly","Professional":"t-pro","Neutral":"t-
 
 // Bump this version whenever classification logic changes, so stale cached results
 // from an older ruleset are discarded instead of silently reused.
-const LS_KEY = "callrail_analysis_v164";
+const LS_KEY = "callrail_analysis_v165";
 const LS_APIKEY = "callrail_api_key";
 const LS_MODEL = "callrail_model";
 
@@ -1745,7 +1745,17 @@ function classifyHeuristic(call){
   // employers, an assistant, an adult child calling for a parent) uses that exact same generic phrasing
   // for a totally legitimate service call; it's only a marketing signal when paired with actual vendor
   // pitch language, which the rest of this list already covers.
-  const marketing = has("exploring marketing","marketing options","support in marketing","support with marketing",
+  const marketing = has(
+    // Caller OFFERING to do the business's website / social media / marketing / advertising work — a web/
+    // marketing-services vendor pitch. These comma-lists and "do your social media / update your website"
+    // offers don't occur in a genuine plumbing/HVAC service call.
+    "social media, marketing","marketing, advertising","website, social media","social media and marketing",
+    "website and social media","do your social media","do your website","take care of your social media",
+    "take care of some social media","any of the social media","the social medias","manage your social media",
+    "handle your social media","run your social media","social media management","social media marketing",
+    "updating website","update your website","wrote up a website","made you a website","build you a website",
+    "built you a website","consulting agency","marketing consulting",
+    "exploring marketing","marketing options","support in marketing","support with marketing",
     "need support in marketing","needs support in marketing","help in marketing","looking at marketing","with your marketing needs",
     "pay per call","pay-per-call","paper call marketing","marketing company","marketing agency",
     "marketing firm","lead generation company","lead gen company","we're a marketing","we are a marketing","qualified calls",
