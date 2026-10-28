@@ -659,9 +659,12 @@ const REASON_COLORS = {
   "Message — No Reply":"#64748b", "Wrong Number":"#c026d3", "Spam / Solicitation":"#dc2626",
   "Invalid / Not a Real Lead":"#78716c", "Other / Uncategorized":"#94a3b8"
 };
-/* Reasons that are a dispatch/answering failure rather than a customer decision —
-   these are the ones the client can actually win back. */
-const RECOVERABLE = new Set(["Missed / Not Answered",SHORT_CALL,"Booked Out / No Availability","Customer Will Call Back"]);
+/* Leads that were real and are still winnable — a call that was missed or cut
+   short, a slot that wasn't offered, a caller who was only ever given a price,
+   a message left hanging, someone who said they'd ring back. Follow-up, a
+   call-back or a better quote conversation can still land these. */
+const RECOVERABLE = new Set(["Missed / Not Answered",SHORT_CALL,"Booked Out / No Availability",
+                             "Customer Will Call Back","Price / Quote Shopping","Message — No Reply"]);
 /* Reasons where the lead was never a real job — the "Invalid" bucket in the LSA
    audit tab, and the categories Google will normally credit if disputed. */
 const INVALID     = new Set(["Out of Scope / Service Not Offered","Outside Service Area","Wrong Number",
@@ -1527,7 +1530,7 @@ function renderKPIs(leads){
           ? '<span class="' + (a.rate >= pa.rate ? "up" : "down") + '">' + (a.rate >= pa.rate ? "▲" : "▼") + " "
             + Math.abs((a.rate - pa.rate) * 100).toFixed(1) + "pt</span> vs. prior " + prevMonths.length + "mo"
           : "booked ÷ (booked + not booked)" },
-    { c:"purple", v:nf(recov),                       l:"Recoverable",     s:"missed, &lt;" + SHORT_CALL_SECS + "s, booked-out, call-backs" },
+    { c:"purple", v:nf(recov),                       l:"Recoverable",     s:"missed, &lt;" + SHORT_CALL_SECS + "s, booked-out, price-shopped, messages, call-backs" },
     { c:"red",    v:nf(notAns),                      l:"Missed / unanswered", s: a.total ? pct(notAns,a.total)+"% of all leads" : "—" },
     { c:"slate",  v:avgAns==null?"—":avgAns+"s",     l:"Avg. answer time", s:"seconds to pick up" }
   ];
@@ -2276,7 +2279,7 @@ function renderInsights(leads){
     const recov = nb.filter(L => RECOVERABLE.has(L.reason)).length;
     if(recov)
       add("o", "<b class=\"m\">" + nf(recov) + "</b> lost leads (<span class=\"m\">" + pct(recov, nb.length) +
-        "%</span> of all not-booked) failed on answering or availability rather than on the customer's decision. At the current booking rate those are worth roughly <b class=\"m\">" +
+        "%</span> of all not-booked) were real leads that are still winnable — missed or short calls, no slot offered, a price-only conversation, an unanswered message, or a promised call-back. At the current booking rate those are worth roughly <b class=\"m\">" +
         Math.round(recov * (a.rate||0)) + "</b> recoverable jobs.");
 
     const disp = nb.filter(L => INVALID.has(L.reason)).length;
