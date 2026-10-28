@@ -636,11 +636,13 @@ let nextLocId = 1;
    REASON TAXONOMY
    Aligned with the "CALLS PERCENTAGE" buckets in the LSA Audit
    Report sheet (Booked / Not Booked / Invalid / Booked Out /
-   Not Answered / Missed / Under 30 Seconds) and extended with the
+   Not Answered / Missed / short calls) and extended with the
    content-driven reasons that show up in the dispatch NOTES column.
    ============================================================ */
+const SHORT_CALL_SECS = 20;                       // talk time below this is a short call
+const SHORT_CALL = "Under " + SHORT_CALL_SECS + " Seconds";
 const REASONS = [
-  "Missed / Not Answered", "Under 30 Seconds", "Booked Out / No Availability",
+  "Missed / Not Answered", SHORT_CALL, "Booked Out / No Availability",
   "Price / Quote Shopping", "Declined / No Commitment", "Out of Scope / Service Not Offered",
   "Outside Service Area", "Cancelled After Booking", "Customer Will Call Back",
   "Not the Decision Maker", "Home Warranty / Insurance", "Existing Customer / Follow-up",
@@ -648,7 +650,7 @@ const REASONS = [
   "Other / Uncategorized"
 ];
 const REASON_COLORS = {
-  "Missed / Not Answered":"#ef4444", "Under 30 Seconds":"#f97316",
+  "Missed / Not Answered":"#ef4444", [SHORT_CALL]:"#f97316",
   "Booked Out / No Availability":"#ca8a04", "Price / Quote Shopping":"#8b5cf6",
   "Declined / No Commitment":"#be185d", "Out of Scope / Service Not Offered":"#0ea5e9",
   "Outside Service Area":"#14b8a6", "Cancelled After Booking":"#db2777",
@@ -659,16 +661,19 @@ const REASON_COLORS = {
 };
 /* Reasons that are a dispatch/answering failure rather than a customer decision —
    these are the ones the client can actually win back. */
-const RECOVERABLE = new Set(["Missed / Not Answered","Under 30 Seconds","Booked Out / No Availability","Customer Will Call Back"]);
+const RECOVERABLE = new Set(["Missed / Not Answered",SHORT_CALL,"Booked Out / No Availability","Customer Will Call Back"]);
 /* Reasons where the lead was never a real job — the "Invalid" bucket in the LSA
    audit tab, and the categories Google will normally credit if disputed. */
 const INVALID     = new Set(["Out of Scope / Service Not Offered","Outside Service Area","Wrong Number",
                              "Spam / Solicitation","Not the Decision Maker","Invalid / Not a Real Lead"]);
 
-/* The dispatch team writes its own tags into CALLERS NAME ("under 30 seconds",
-   "Invalid - job not served", "Not Charged Lead") and into BOOKED DAY ("Canceled",
-   "Not Available"). Those two columns are treated as authoritative; the free-text
-   NOTES column only decides the cases they don't already settle. */
+/* The dispatch team writes its own tags into CALLERS NAME ("Invalid - job not
+   served", "Not Charged Lead") and into BOOKED DAY ("Canceled", "Not Available").
+   Those two columns are treated as authoritative; the free-text NOTES column only
+   decides the cases they don't already settle.
+   The short-call bucket is the exception: the sheet carries an "under 30 seconds"
+   tag from its own older threshold, so DURATION alone decides it and SHORT_CALL_SECS
+   is the only place that number lives. */
 function classifyReason(L){
   const n   = (L.notes||"").toLowerCase();
   const who = (L.caller||"").toLowerCase();
@@ -676,13 +681,12 @@ function classifyReason(L){
   const isPhone = L.leadType === "Phone";
 
   // ── explicit tags the team already wrote ──────────────────────────────────
-  if(/under\s*30\s*sec/.test(who) || /under\s*30\s*sec/.test(n)) return "Under 30 Seconds";
   if(/cancel/.test(bd) || /cancell?ed/.test(who)) return "Cancelled After Booking";
   if(/missed|no answer|not answered|unanswered/.test(who)) return "Missed / Not Answered";
 
   // ── structural buckets, mirroring the audit sheet's own categories ────────
   if(isPhone && L.durationSec === 0) return "Missed / Not Answered";
-  if(isPhone && L.durationSec > 0 && L.durationSec < 30) return "Under 30 Seconds";
+  if(isPhone && L.durationSec > 0 && L.durationSec < SHORT_CALL_SECS) return SHORT_CALL;
   if(isPhone && L.durationSec < 90 &&
      /\b(no answer|did ?n[o']?t answer|went to voicemail|voicemail|lvm|missed call|no one answered|nobody answered|rang for \d+ second|call ended right away)\b/.test(n))
     return "Missed / Not Answered";
@@ -1523,7 +1527,7 @@ function renderKPIs(leads){
           ? '<span class="' + (a.rate >= pa.rate ? "up" : "down") + '">' + (a.rate >= pa.rate ? "▲" : "▼") + " "
             + Math.abs((a.rate - pa.rate) * 100).toFixed(1) + "pt</span> vs. prior " + prevMonths.length + "mo"
           : "booked ÷ (booked + not booked)" },
-    { c:"purple", v:nf(recov),                       l:"Recoverable",     s:"missed, &lt;30s, booked-out, call-backs" },
+    { c:"purple", v:nf(recov),                       l:"Recoverable",     s:"missed, &lt;" + SHORT_CALL_SECS + "s, booked-out, call-backs" },
     { c:"red",    v:nf(notAns),                      l:"Missed / unanswered", s: a.total ? pct(notAns,a.total)+"% of all leads" : "—" },
     { c:"slate",  v:avgAns==null?"—":avgAns+"s",     l:"Avg. answer time", s:"seconds to pick up" }
   ];
@@ -2281,7 +2285,7 @@ function renderInsights(leads){
   }
 
   // dispatch performance
-  const NON_AGENT = /^(booking|message|text|not answered|no answer|unanswered|missed|missed call|voicemail|lvm|invalid|under 30 seconds|not charged|n\/?a|-|—|none|unknown)$/i;
+  const NON_AGENT = /^(booking|message|text|not answered|no answer|unanswered|missed|missed call|voicemail|lvm|invalid|under \d+ seconds|not charged|n\/?a|-|—|none|unknown)$/i;
   const disp = [...groupBy(leads.filter(L => L.dispatch && !NON_AGENT.test(L.dispatch.trim())), L => L.dispatch.trim()).entries()]
     .map(([d,ls]) => ({ d, a:agg(ls) })).filter(x => x.a.decided >= 20).sort((x,y) => y.a.rate - x.a.rate);
   if(disp.length >= 2)
