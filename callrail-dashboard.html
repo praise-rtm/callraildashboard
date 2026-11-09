@@ -478,7 +478,7 @@ const TONE_CLASS = {"Friendly":"t-friendly","Professional":"t-pro","Neutral":"t-
 
 // Bump this version whenever classification logic changes, so stale cached results
 // from an older ruleset are discarded instead of silently reused.
-const LS_KEY = "callrail_analysis_v165";
+const LS_KEY = "callrail_analysis_v166";
 const LS_APIKEY = "callrail_api_key";
 const LS_MODEL = "callrail_model";
 
@@ -2005,10 +2005,13 @@ function classifyHeuristic(call){
     /\b(?:caller\s+(?:is\s+|needs to\s+)?(?:looking|asking) for|caller needs to speak (?:to|with)|is there (?:a|someone)(?: named| by the name of)?|(?:wants?|wanted|needs?|needed) to (?:speak|talk) (?:to|with)|trying to (?:reach|speak (?:to|with)|talk (?:to|with))|(?:can|may) i (?:speak|talk) (?:to|with))\s+(\w+(?:\s\w+)?)\b/i
   );
   const askingForPerson=!!(personPhraseMatch && /^[A-Z][a-z]+(?:\s[A-Z][a-z]+)?$/.test(personPhraseMatch[1]));
-  // Only look at how the call actually ENDED (last ~220 chars) — "thank you" anywhere in the whole blob
-  // would also match a business's own opening IVR greeting ("Thank you for calling X"), which says
-  // nothing about whether the call reached a resolution.
-  const naturalClosing=/\b(thank you( so much)?|thanks( so much)?|thanked (the|him|her|them)|appreciate it|bye( bye)?|have a (great|good|wonderful|nice) (day|one|rest of your day)|take care|no problem)\b/i.test(personSrc.slice(-220));
+  // Only look at how the call actually ENDED — "thank you" anywhere in the whole blob would also match a
+  // business's own opening IVR greeting. Use the TRANSCRIPT's last ~220 chars (the real ending); checking
+  // transcription+note would land the window in the dispatcher NOTE's tail (a summary, not the call's
+  // ending) and miss the closing. The note, being a summary, can also state the call closed well, so its
+  // "concluded / ended / expressions of gratitude" phrasing counts as a natural closing too.
+  const naturalClosing=/\b(thank you( so much)?|thanks( so much)?|thanked (the|him|her|them)|appreciate it|bye( bye)?|have a (great|good|wonderful|nice) (day|one|rest of your day)|take care|no problem)\b/i.test((call.transcription||"").slice(-220))
+    || /\b(call (?:concluded|ended|wrapped up|finished|closed)|expressions of gratitude|thanked (?:the agent|him|her|them|each other|everyone)|ended (?:on a |)(?:positive|friendly|polite|cordial|good)|polite(?:ly)? (?:close|closing|goodbye)|exchanged (?:pleasantries|thanks|goodbyes))\b/i.test(call.note||"");
   // The caller reached this business on purpose (not a wrong number) and the call reached a resolution
   // (the agent took the message/info, closed out with a goodbye) — treat it as a real, handled contact:
   // Valid Call, Not Booked. (Previously "Incorrect Business" — reconsidered: asking for a specific
