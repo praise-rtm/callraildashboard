@@ -478,7 +478,7 @@ const TONE_CLASS = {"Friendly":"t-friendly","Professional":"t-pro","Neutral":"t-
 
 // Bump this version whenever classification logic changes, so stale cached results
 // from an older ruleset are discarded instead of silently reused.
-const LS_KEY = "callrail_analysis_v166";
+const LS_KEY = "callrail_analysis_v167";
 const LS_APIKEY = "callrail_api_key";
 const LS_MODEL = "callrail_model";
 
@@ -1879,7 +1879,11 @@ function classifyHeuristic(call){
   // transcription can spuriously contain the business's own name/keywords (e.g. picking up bleed from a
   // greeting that never rendered as its own "Agent:" line), which would otherwise misread this as a real
   // service call. A dispatcher note describing a short ring-then-hangup is the norm for this pattern.
-  if(callerText.trim() && !agentText.trim())
+  // EXCEPTION: a genuine Voicemail where the caller left a message is EXACTLY this shape (caller content,
+  // no live agent turn to transcribe) — that is not a dropped/garbled call, it's a message left in a
+  // voicemail box, so let it fall through to the dedicated voicemail branch below which judges it from
+  // what the caller actually said (a service request / callback is a real lead, not a disconnect).
+  if(callerText.trim() && !agentText.trim() && !(status.includes("voicemail")||routedToInternalVoicemail))
     return normalize({summary,is_service_call:false,booking_status:"Not Booked",invalid_reason:"Disconnected",confidence:"Medium",engine:"heuristic"},call);
 
   // Caller WARNING the business about a security/phishing issue — "you've been hacked", "somebody's using
